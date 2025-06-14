@@ -205,8 +205,20 @@ if __name__ == '__main__':
 
     app = QApplication(sys.argv)
     class DummyUserForAllTickets(User):
+ feat/initial-ticketing-system
+        def __init__(self, u="viewer", r="Technician", uid="tech_uid"):
+            self.username = u
+            self.role = r
+            self.user_id = uid # type: ignore
+
+        def set_password(self,p):
+            pass
+
+        def check_password(self,p):
+            return False
         def __init__(self, u="viewer", r="Technician", uid="tech_uid"): self.username=u;self.role=r;self.user_id=uid # type: ignore
         def set_password(self,p):pass; def check_password(self,p):return False
+ main
     test_user = DummyUserForAllTickets()
 
     _og_list_tickets = ticket_manager.list_tickets
