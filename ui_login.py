@@ -6,7 +6,8 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QPushButton,
     QVBoxLayout,
-    QMessageBox
+    QMessageBox,
+    QDialog # Added for checking dialog result
 )
 from PySide6.QtCore import Slot # For explicit slot decoration, good practice
 
@@ -14,12 +15,16 @@ from PySide6.QtCore import Slot # For explicit slot decoration, good practice
 try:
     from user_manager import verify_user
     from models import User # For type hinting
-    from ui_main_window import MainWindow # Added for integration
+    from ui_main_window import MainWindow
+    from ui_change_password_dialog import ChangePasswordDialog # Added
 except ModuleNotFoundError:
-    print("Error: user_manager.py, models.py, or ui_main_window.py not found. Ensure they are accessible.")
+    print("Error: A required module was not found. Ensure all UI and manager files are accessible.")
     # Fallback for User type hint if models.py is missing
-    class User: username: str; role: str
+    class User: username: str; role: str; force_password_reset: bool = False; user_id: str = "fb_user" # Added more for fallback
     def verify_user(u, p): return None # Fallback verify_user
+    class MainWindow: pass # Fallback
+    class ChangePasswordDialog: pass # Fallback
+
 
 from typing import Optional
 
@@ -82,22 +87,38 @@ class LoginWindow(QWidget):
             QMessageBox.critical(self, "Login Error", f"An unexpected error occurred during login: {e}")
             return
 
-        if user:
-            self.message_label.setText(f"Login successful! Welcome {user.username} (Role: {user.role})")
-            self.message_label.setStyleSheet("color: green;")
-            # Optional: Keep this for immediate feedback before main window fully loads
-            # QMessageBox.information(self, "Login Success", f"Welcome {user.username}!\nRole: {user.role}")
+        if user: # verify_user now returns None if inactive or invalid credentials
+            if hasattr(user, 'force_password_reset') and user.force_password_reset:
+                # self.message_label.setText("Password change required.") # Optional immediate feedback
+                # Ensure ChangePasswordDialog can be instantiated (might need to adjust fallback if User is also fallback)
+                try:
+                    change_password_dialog = ChangePasswordDialog(user_id=user.user_id, username=user.username, parent=self)
+                    dialog_result = change_password_dialog.exec()
 
-            # Open the main window
+                    if dialog_result == QDialog.Accepted:
+                        QMessageBox.information(self, "Password Changed", "Password changed successfully. Please log in again with your new password.")
+                        self.username_edit.clear()
+                        self.password_input.clear() # Changed from self.password_edit
+                        self.message_label.setText("Please log in with your new password.")
+                        self.username_edit.setFocus()
+                    else:
+                        self.message_label.setText("Password change is required to proceed. Login aborted.")
+                    return # Stop further login processing here in both cases.
+                except TypeError as te: # Catch if fallback ChangePasswordDialog is incompatible
+                     self.message_label.setText("Error: Password change dialog unavailable.")
+                     print(f"TypeError when creating/executing ChangePasswordDialog: {te}", file=sys.stderr)
+                     return
+
+
+            # If not force_password_reset, proceed to MainWindow
+            # self.message_label.setText(f"Login successful! Welcome {user.username} (Role: {user.role})") # Optional
+
             self.main_window = MainWindow(user=user)
             self.main_window.show()
-
-            self.close() # Close the login window
-        else:
-            self.message_label.setText("Invalid username or password.")
+            self.close()
+        else: # User is None (login failed or inactive)
+            self.message_label.setText("Invalid username, password, or account inactive.")
             self.message_label.setStyleSheet("color: red;")
-            # Do not show a pop-up for invalid credentials to prevent user enumeration,
-            # just update the label. Or, if a pop-up is desired:
             # QMessageBox.warning(self, "Login Failed", "Invalid username or password.")
 
 # Example of running this window directly for testing (optional)
