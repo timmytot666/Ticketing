@@ -11,8 +11,8 @@ from PySide6.QtWidgets import (
     QApplication, # For direct test
     QMessageBox
 )
-from PySide6.QtCore import Slot, Qt, Signal, QShowEvent
-from PySide6.QtGui import QFont
+from PySide6.QtCore import Slot, Qt, Signal
+from PySide6.QtGui import QFont, QShowEvent # Moved QShowEvent
 
 from datetime import datetime
 from typing import Optional, List

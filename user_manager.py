@@ -130,3 +130,27 @@ def verify_user(username: str, password: str) -> Optional[User]:
     if user and user.check_password(password):
         return user
     return None
+
+def get_users_by_role(roles: List[str]) -> List[User]:
+    """
+    Retrieves a list of users matching any of the specified roles.
+    """
+    if not roles:
+        return []
+
+    all_users = _load_users()
+    matching_users: List[User] = []
+
+    # Ensure roles in the input list are valid if User.ROLES is defined
+    # This is an optional check for robustness, User model itself validates role on creation.
+    if User.ROLES and hasattr(User.ROLES, '__args__'):
+        valid_system_roles = User.ROLES.__args__
+        for role in roles:
+            if role not in valid_system_roles:
+                print(f"Warning: Role '{role}' in get_users_by_role is not a defined system role. It may yield no results if users are strictly validated against User.ROLES.")
+
+    for user in all_users:
+        if hasattr(user, 'role') and user.role in roles:
+            matching_users.append(user)
+
+    return matching_users

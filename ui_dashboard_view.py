@@ -9,8 +9,8 @@ from PySide6.QtWidgets import (
     QSizePolicy,
     QApplication
 )
-from PySide6.QtCore import Qt, Slot, QShowEvent
-from PySide6.QtGui import QFont
+from PySide6.QtCore import Qt, Slot
+from PySide6.QtGui import QFont, QShowEvent # Moved QShowEvent
 
 from typing import Optional, List, Dict, Any # Added Dict, Any
 from datetime import datetime, date, timedelta, timezone
