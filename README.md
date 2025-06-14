@@ -1,118 +1,129 @@
-# Command-Line Ticketing System
+# Advanced GUI Ticketing System
 
 ## Overview
 
-This is a simple command-line ticketing system designed to manage IT and Facilities support tickets. Users can create, view, list, and update tickets through a CLI interface. Ticket data is persisted in a JSON file.
+This is a desktop application built with Python and PySide6 for managing IT and Facilities support tickets. It features a rich user interface with role-based access control, enabling different levels of interaction and functionality depending on the logged-in user. The system persists data using local JSON files.
+
+## User Roles & Capabilities
+
+The system defines several user roles, each with specific capabilities:
+
+*   **EndUser:**
+    *   Submit new support tickets.
+    *   View and track the status of their own submitted tickets.
+    *   Receive in-app notifications for updates to their tickets (e.g., status changes, new comments, assignments).
+    *   View their notification inbox.
+*   **Technician/Engineer:**
+    *   View a comprehensive list of all tickets or filter to see tickets assigned to them.
+    *   Access detailed views of individual tickets.
+    *   Update ticket details, including status, priority, and assignment.
+    *   Add comments and view the history of a ticket.
+    *   Receive in-app notifications, particularly for new assignments or updates to tickets they are involved with.
+    *   View their notification inbox.
+*   **TechManager/EngManager:**
+    *   All capabilities of Technicians/Engineers.
+    *   Access to a dashboard providing an overview of ticket statistics and visualizations (e.g., ticket status distribution).
+    *   Access to a reporting system to generate reports on ticket volumes, types, and user activity.
+    *   View their notification inbox.
 
 ## Features
 
-*   **Create Tickets:** Generate new tickets with a title, description, type, requester email, and priority.
-*   **View Tickets:** Display detailed information for a specific ticket by its ID.
-*   **List Tickets:** Show all tickets or filter them by status, type, or priority.
-*   **Update Tickets:** Modify existing tickets' attributes such as title, description, type, status, or priority.
-*   **Ticket Types:** Supports two distinct types of tickets: 'IT' and 'Facilities'.
-*   **Priority Management:** Assign 'Low', 'Medium', or 'High' priority to tickets.
-*   **Status Tracking:** Tickets can be 'Open', 'In Progress', or 'Closed'.
-*   **Data Persistence:** Ticket information is saved locally in a `tickets.json` file.
+*   **User Authentication:** Secure user login and role-based access control determining UI and feature availability.
+*   **Ticket Management:**
+    *   **Creation:** Users can create new tickets, providing title, description, type (IT/Facilities), and priority.
+    *   **Viewing:**
+        *   EndUsers can view a list of their own submitted tickets (`MyTicketsView`).
+        *   Technicians and Managers can view a filterable list of all tickets (`AllTicketsView`).
+        *   A detailed view (`TicketDetailView`) shows all information for a selected ticket, including its comment history.
+    *   **Updating:** Authorized users can update a ticket's status, priority, type, title, description, and assignee.
+    *   **Commenting:** Users can add comments to tickets, which are displayed chronologically in the ticket detail view.
+*   **Notification System:**
+    *   **In-App Inbox (`InboxView`):** Users can view a list of notifications related to their activity or assignments.
+    *   **Status Bar Indicator:** The main window displays a count of unread notifications.
+    *   **Automated Notifications:** Generated for significant ticket events:
+        *   Status changes on a ticket (notifies requester).
+        *   New ticket assignments (notifies new assignee, old assignee, and requester).
+        *   New comments on a ticket (notifies requester and current assignee, if different from commenter).
+*   **Manager Dashboard (`DashboardView`):**
+    *   Displays key metrics: counts of Open, In Progress, On Hold, and Resolved Today tickets.
+    *   Includes a pie chart visualizing the distribution of active ticket statuses (Open, In Progress, On Hold).
+*   **Reporting System (`ReportingView`):**
+    *   Generate text-based reports for:
+        *   Ticket Volume by Status
+        *   Ticket Volume by Type
+        *   User Activity (Top Requesters)
+    *   Filter reports by a selectable date range (based on ticket creation date).
+*   **Data Persistence:** User accounts, tickets, and notifications are stored in local JSON files (`users.json`, `tickets.json`, `notifications.json`).
 
 ## File Structure
 
-The project is organized into the following key files and directories:
+Key files and directories in the project:
 
-*   `ticketing_cli.py`: The main entry point for the command-line interface. It parses arguments and calls the appropriate functions.
-*   `ticket_manager.py`: Contains the core business logic for managing tickets, including creation, retrieval, updates, and filtering.
-*   `models.py`: Defines the `Ticket` class, which represents the data structure for a single ticket.
-*   `tickets.json`: The JSON file where all ticket data is stored. This file is automatically created and updated.
-*   `tests/`: This directory holds all the unit tests for the system.
-    *   `test_models.py`: Unit tests for the `Ticket` model.
-    *   `test_ticket_manager.py`: Unit tests for the ticket management logic.
+*   `main_gui.py`: Main entry point to launch the PySide6 GUI application.
+*   `ui_login.py`: Defines the `LoginWindow` class for user authentication.
+*   `ui_main_window.py`: Defines the `MainWindow` class, the main application shell which hosts other views.
+*   **UI Views (`ui_*.py`):**
+    *   `ui_create_ticket_view.py`: View for creating new tickets.
+    *   `ui_my_tickets_view.py`: View for EndUsers to see their submitted tickets.
+    *   `ui_all_tickets_view.py`: View for Technicians/Managers to see all tickets with filtering.
+    *   `ui_ticket_detail_view.py`: View for displaying and editing details of a single ticket, including comments.
+    *   `ui_inbox_view.py`: View for displaying user notifications.
+    *   `ui_dashboard_view.py`: View for displaying ticket metrics and charts for Managers.
+    *   `ui_reporting_view.py`: View for generating and displaying reports for Managers.
+*   **Backend Logic & Data Models:**
+    *   `models.py`: Defines data structures (`Ticket`, `User`, `Notification`).
+    *   `ticket_manager.py`: Business logic for ticket operations and data persistence.
+    *   `user_manager.py`: Business logic for user authentication and data persistence.
+    *   `notification_manager.py`: Business logic for notification management and data persistence.
+*   **Data Files (`*.json`):**
+    *   `tickets.json`: Stores ticket data.
+    *   `users.json`: Stores user accounts (including hashed passwords).
+    *   `notifications.json`: Stores notification data.
+*   **Dependencies:**
+    *   `requirements.txt`: Lists project dependencies (PySide6, Werkzeug, matplotlib).
+*   **Tests:**
+    *   `tests/`: Directory containing unit tests for backend logic and non-GUI aspects of UI components.
 
 ## Prerequisites
 
-*   Python 3.x
+*   Python 3.x (preferably 3.8 or newer for some typing features).
+*   Dependencies as listed in `requirements.txt`.
 
-## Setup/Installation
+## Setup & Installation
 
-1.  Clone the repository to your local machine:
+1.  **Clone the Repository:**
     ```bash
-    # Replace with the actual URL if this were a real Git repo
-    git clone <repository_url>
-    cd <repository_directory>
+    # Replace with the actual repository URL if applicable
+    # git clone <repository_url>
+    # cd <repository_directory_name>
     ```
-2.  No external package installation is required beyond the standard Python library.
+    (If downloaded as a ZIP, extract it and navigate to the project root directory).
+
+2.  **Create a Virtual Environment (Recommended):**
+    ```bash
+    python -m venv venv
+    # On Windows:
+    # venv\Scripts\activate
+    # On macOS/Linux:
+    # source venv/bin/activate
+    ```
+
+3.  **Install Dependencies:**
+    Navigate to the project root directory (where `requirements.txt` is located) and run:
+    ```bash
+    pip install -r requirements.txt
+    ```
 
 ## Usage
 
-All commands are run through `ticketing_cli.py`.
-
-### Create a New Ticket
-
-To create a new ticket, use the `create` command with the required arguments:
-
-```bash
-python ticketing_cli.py create --title "Network Outage" --description "The main office network is down." --type "IT" --requester_email "user@example.com" --priority "High"
-```
-
-**Arguments for `create`:**
-
-*   `--title` (required): The title of the ticket.
-*   `--description` (required): A detailed description of the issue.
-*   `--type` (required): The type of ticket. Choices: `IT`, `Facilities`.
-*   `--requester_email` (required): The email address of the person requesting assistance.
-*   `--priority` (optional): The priority of the ticket. Choices: `Low`, `Medium`, `High`. Defaults to `Medium`.
-
-### View a Ticket
-
-To view the details of a specific ticket, use the `view` command followed by the ticket ID:
-
-```bash
-python ticketing_cli.py view <ticket_id>
-```
-Replace `<ticket_id>` with the actual ID of the ticket you want to view (e.g., `a1b2c3d4e5f67890a1b2c3d4e5f67890`).
-
-### List Tickets
-
-To list tickets, use the `list` command. You can list all tickets or apply filters.
-
-*   **List all tickets:**
+1.  Ensure you are in the project's root directory and your virtual environment (if used) is activated.
+2.  Run the application using:
     ```bash
-    python ticketing_cli.py list
+    python main_gui.py
     ```
-
-*   **List tickets with filters:**
-    You can filter by `--status`, `--type`, or `--priority`.
-    ```bash
-    python ticketing_cli.py list --status "Open"
-    ```
-    ```bash
-    python ticketing_cli.py list --type "Facilities"
-    ```
-    ```bash
-    python ticketing_cli.py list --priority "High"
-    ```
-    Filters can also be combined:
-    ```bash
-    python ticketing_cli.py list --type "IT" --status "Open" --priority "Medium"
-    ```
-
-### Update a Ticket
-
-To update an existing ticket, use the `update` command followed by the ticket ID and the fields you want to change. At least one field to update must be provided.
-
-```bash
-python ticketing_cli.py update <ticket_id> --status "In Progress" --priority "High"
-```
-```bash
-python ticketing_cli.py update <ticket_id> --title "Updated: Network Connectivity Issues" --description "The network outage seems to be intermittent."
-```
-
-**Optional arguments for `update`:**
-
-*   `--title <new_title>`
-*   `--description <new_description>`
-*   `--type <new_type>` (Choices: `IT`, `Facilities`)
-*   `--status <new_status>` (Choices: `Open`, `In Progress`, `Closed`)
-*   `--priority <new_priority>` (Choices: `Low`, `Medium`, `High`)
+3.  Log in with a user account.
+    *   *(Note: User creation is currently handled by manually editing `users.json` or via direct calls to `user_manager.create_user()`. For initial setup, you might need to create a user this way. Ensure passwords set via `user.set_password()` are properly hashed by Werkzeug.)*
+    *   Example roles defined in `models.User.ROLES`: `EndUser`, `Technician`, `Engineer`, `TechManager`, `EngManager`.
 
 ## Running Tests
 
@@ -121,5 +132,4 @@ To run the automated unit tests, navigate to the project's root directory and ex
 ```bash
 python -m unittest discover tests
 ```
-
-This command will discover and run all test cases defined in the `tests/` directory.
+This command will automatically find and run all test cases within the `tests/` directory.

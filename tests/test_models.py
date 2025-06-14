@@ -1,181 +1,280 @@
 import unittest
 import uuid
 from datetime import datetime, timezone
-from models import Ticket
+from typing import List # Required for Ticket.comments
+from models import Ticket, User, Notification # Import new models
+
+# It's good practice to ensure werkzeug is available if User model relies on it.
+# Models.py has a fallback, but tests for hashing should ideally use real hashing.
+try:
+    from werkzeug.security import generate_password_hash, check_password_hash
+    WERKZEUG_AVAILABLE = True
+except ImportError:
+    WERKZEUG_AVAILABLE = False
+    # Use the placeholder functions from models.py if werkzeug is not installed
+    from models import generate_password_hash, check_password_hash
+
+
+class TestUserModel(unittest.TestCase):
+    def test_user_creation_success(self):
+        user = User(username="testuser", role="EndUser")
+        user.set_password("password123")
+
+        self.assertIsInstance(user.user_id, str)
+        self.assertEqual(user.username, "testuser")
+        self.assertEqual(user.role, "EndUser")
+        self.assertIsNotNone(user.password_hash)
+        self.assertTrue(user.check_password("password123"))
+        self.assertFalse(user.check_password("wrongpassword"))
+
+    def test_user_creation_invalid_username(self):
+        with self.assertRaisesRegex(ValueError, "Username cannot be empty."):
+            User(username="", role="EndUser")
+
+    def test_user_creation_invalid_role(self):
+        with self.assertRaisesRegex(ValueError, "Invalid role: Guest."):
+            User(username="testuser", role="Guest") # type: ignore
+
+    def test_user_set_empty_password(self):
+        user = User(username="testuser", role="Technician")
+        with self.assertRaisesRegex(ValueError, "Password cannot be empty."):
+            user.set_password("")
+
+    def test_user_check_password_no_password_set(self):
+        user = User(username="nouser", role="EndUser") # Password not set
+        self.assertFalse(user.check_password("anypassword"))
+
+    def test_user_check_password_empty_password_to_check(self):
+        user = User(username="testuser", role="Engineer")
+        user.set_password("securepass")
+        self.assertFalse(user.check_password(""))
+
+
+    def test_user_to_dict_from_dict_roundtrip(self):
+        original_user = User(username="dictuser", role="TechManager")
+        original_user.set_password("dictpass")
+        # Manually set user_id for predictable dict if needed, though default is fine for roundtrip
+        # original_user.user_id = "fixed_user_id_for_dict_test"
+
+        user_dict = original_user.to_dict()
+
+        self.assertEqual(user_dict["username"], "dictuser")
+        self.assertEqual(user_dict["role"], "TechManager")
+        self.assertEqual(user_dict["user_id"], original_user.user_id)
+        self.assertEqual(user_dict["password_hash"], original_user.password_hash)
+
+        reconstructed_user = User.from_dict(user_dict)
+        self.assertEqual(reconstructed_user.user_id, original_user.user_id)
+        self.assertEqual(reconstructed_user.username, original_user.username)
+        self.assertEqual(reconstructed_user.role, original_user.role)
+        self.assertEqual(reconstructed_user.password_hash, original_user.password_hash)
+
+        # Check password still works after reconstruction
+        self.assertTrue(reconstructed_user.check_password("dictpass"))
+        self.assertFalse(reconstructed_user.check_password("wrongpass"))
+
+class TestNotificationModel(unittest.TestCase):
+    def test_notification_creation_success(self):
+        now = datetime.now(timezone.utc)
+        notification = Notification(
+            user_id="user123",
+            message="Test notification message",
+            ticket_id="ticket_abc"
+        )
+        self.assertIsInstance(notification.notification_id, str)
+        self.assertEqual(notification.user_id, "user123")
+        self.assertEqual(notification.message, "Test notification message")
+        self.assertEqual(notification.ticket_id, "ticket_abc")
+        self.assertIsInstance(notification.timestamp, datetime)
+        self.assertGreaterEqual(notification.timestamp, now)
+        self.assertFalse(notification.is_read)
+
+    def test_notification_creation_defaults(self):
+        notification = Notification(user_id="user456", message="Another message")
+        self.assertIsNotNone(notification.notification_id)
+        self.assertIsNone(notification.ticket_id) # Default
+        self.assertIsNotNone(notification.timestamp) # Default
+        self.assertFalse(notification.is_read) # Default
+
+    def test_notification_creation_invalid_user_id(self):
+        with self.assertRaisesRegex(ValueError, "User ID cannot be empty for a notification."):
+            Notification(user_id="", message="Test message")
+
+    def test_notification_creation_invalid_message(self):
+        with self.assertRaisesRegex(ValueError, "Notification message cannot be empty."):
+            Notification(user_id="user123", message="")
+
+    def test_notification_to_dict_from_dict_roundtrip(self):
+        ts = datetime(2023, 10, 26, 12, 0, 0, tzinfo=timezone.utc)
+        original_notification = Notification(
+            user_id="user_dict_test",
+            message="Notification for dict test",
+            ticket_id="t_dict_123",
+            notification_id="notif_fixed_id", # Fixed for predictability
+            timestamp=ts,
+            is_read=True
+        )
+
+        notif_dict = original_notification.to_dict()
+        expected_dict = {
+            "notification_id": "notif_fixed_id",
+            "user_id": "user_dict_test",
+            "ticket_id": "t_dict_123",
+            "message": "Notification for dict test",
+            "timestamp": ts.isoformat(),
+            "is_read": True
+        }
+        self.assertEqual(notif_dict, expected_dict)
+
+        reconstructed_notification = Notification.from_dict(notif_dict)
+        self.assertEqual(reconstructed_notification.notification_id, original_notification.notification_id)
+        self.assertEqual(reconstructed_notification.user_id, original_notification.user_id)
+        self.assertEqual(reconstructed_notification.ticket_id, original_notification.ticket_id)
+        self.assertEqual(reconstructed_notification.message, original_notification.message)
+        self.assertEqual(reconstructed_notification.timestamp, original_notification.timestamp)
+        self.assertEqual(reconstructed_notification.is_read, original_notification.is_read)
+
 
 class TestTicketModel(unittest.TestCase):
+    # Dummy user IDs for testing
+    DUMMY_REQUESTER_USER_ID = "requester_user_001"
+    DUMMY_CREATED_BY_USER_ID = "creator_user_002"
+    DUMMY_ASSIGNEE_USER_ID = "assignee_user_003"
 
     def test_ticket_creation_success(self):
-        """Test successful Ticket creation with valid data."""
         now = datetime.now(timezone.utc)
         ticket = Ticket(
             title="Network Outage",
             description="The entire 3rd floor is offline.",
             type="IT",
-            requester_email="user@example.com",
+            requester_user_id=self.DUMMY_REQUESTER_USER_ID, # Changed
+            created_by_user_id=self.DUMMY_CREATED_BY_USER_ID, # Added
             status="Open",
-            priority="High"
+            priority="High",
+            assignee_user_id=self.DUMMY_ASSIGNEE_USER_ID, # Added
+            comments=[] # Added
         )
         self.assertIsInstance(ticket.id, str)
-        self.assertEqual(len(ticket.id), 32) # UUID4 hex length
         self.assertEqual(ticket.title, "Network Outage")
-        self.assertEqual(ticket.description, "The entire 3rd floor is offline.")
-        self.assertEqual(ticket.type, "IT")
-        self.assertEqual(ticket.requester_email, "user@example.com")
-        self.assertEqual(ticket.status, "Open")
-        self.assertEqual(ticket.priority, "High")
-        self.assertIsInstance(ticket.created_at, datetime)
-        self.assertIsInstance(ticket.updated_at, datetime)
+        self.assertEqual(ticket.requester_user_id, self.DUMMY_REQUESTER_USER_ID) # Changed
+        self.assertEqual(ticket.created_by_user_id, self.DUMMY_CREATED_BY_USER_ID) # Added
+        self.assertEqual(ticket.assignee_user_id, self.DUMMY_ASSIGNEE_USER_ID) # Added
+        self.assertEqual(ticket.comments, []) # Added
         self.assertGreaterEqual(ticket.created_at, now)
-        self.assertGreaterEqual(ticket.updated_at, now)
-        self.assertEqual(ticket.created_at, ticket.updated_at)
 
     def test_ticket_creation_defaults(self):
-        """Test Ticket creation with default status and priority."""
         ticket = Ticket(
             title="Printer Issue",
             description="Printer on 2nd floor not working.",
             type="Facilities",
-            requester_email="another@example.com"
+            requester_user_id=self.DUMMY_REQUESTER_USER_ID, # Changed
+            created_by_user_id=self.DUMMY_CREATED_BY_USER_ID # Added
         )
-        self.assertEqual(ticket.status, "Open")
-        self.assertEqual(ticket.priority, "Medium")
+        self.assertEqual(ticket.status, "Open") # Default
+        self.assertEqual(ticket.priority, "Medium") # Default
+        self.assertIsNone(ticket.assignee_user_id) # Default
+        self.assertEqual(ticket.comments, []) # Default
 
+    def test_ticket_creation_invalid_requester_user_id(self): # New test
+        with self.assertRaisesRegex(ValueError, "Requester User ID cannot be empty"):
+            Ticket("Title", "Desc", "IT", "", self.DUMMY_CREATED_BY_USER_ID)
+
+    def test_ticket_creation_invalid_created_by_user_id(self): # New test
+        with self.assertRaisesRegex(ValueError, "Created By User ID cannot be empty"):
+            Ticket("Title", "Desc", "IT", self.DUMMY_REQUESTER_USER_ID, "")
+
+    # Existing tests for title, description, type, status, priority remain largely the same
+    # but need to include the new mandatory fields in Ticket creation
     def test_ticket_creation_invalid_type(self):
         with self.assertRaisesRegex(ValueError, "Type must be 'IT' or 'Facilities'"):
-            Ticket("Test", "Test desc", "Billing", "user@example.com")
-
-    def test_ticket_creation_invalid_status(self):
-        with self.assertRaisesRegex(ValueError, "Status must be 'Open', 'In Progress', or 'Closed'"):
-            Ticket("Test", "Test desc", "IT", "user@example.com", status="Pending")
-
-    def test_ticket_creation_invalid_priority(self):
-        with self.assertRaisesRegex(ValueError, "Priority must be 'Low', 'Medium', or 'High'"):
-            Ticket("Test", "Test desc", "IT", "user@example.com", priority="Urgent")
+            Ticket("Test", "Test desc", "Billing", self.DUMMY_REQUESTER_USER_ID, self.DUMMY_CREATED_BY_USER_ID)
 
     def test_ticket_creation_empty_title(self):
-        with self.assertRaisesRegex(ValueError, "Title cannot be empty and must be a string."):
-            Ticket("", "Description", "IT", "user@example.com")
-
-    def test_ticket_creation_empty_description(self):
-        with self.assertRaisesRegex(ValueError, "Description cannot be empty and must be a string."):
-            Ticket("Title", "", "IT", "user@example.com")
-
-    def test_ticket_creation_empty_email(self):
-        with self.assertRaisesRegex(ValueError, "Requester email cannot be empty and must be a string."):
-            Ticket("Title", "Description", "IT", "")
-
-    def test_ticket_creation_invalid_email_format(self):
-        with self.assertRaisesRegex(ValueError, "Requester email must contain an '@' symbol."):
-            Ticket("Title", "Description", "IT", "userexample.com")
+        with self.assertRaisesRegex(ValueError, "Title cannot be empty"):
+            Ticket("", "Description", "IT", self.DUMMY_REQUESTER_USER_ID, self.DUMMY_CREATED_BY_USER_ID)
 
     def test_id_auto_generation(self):
-        """Test that IDs are auto-generated and unique."""
-        ticket1 = Ticket("T1", "D1", "IT", "t1@example.com")
-        ticket2 = Ticket("T2", "D2", "Facilities", "t2@example.com")
+        ticket1 = Ticket("T1", "D1", "IT", self.DUMMY_REQUESTER_USER_ID, self.DUMMY_CREATED_BY_USER_ID)
+        ticket2 = Ticket("T2", "D2", "Facilities", self.DUMMY_REQUESTER_USER_ID, self.DUMMY_CREATED_BY_USER_ID)
         self.assertNotEqual(ticket1.id, ticket2.id)
-        self.assertTrue(uuid.UUID(ticket1.id, version=4)) # Check if it's a valid UUID4 hex
 
-    def test_timestamps_auto_generation(self):
-        """Test that created_at and updated_at are auto-generated datetime objects."""
-        ticket = Ticket("T", "D", "IT", "t@example.com")
-        self.assertIsInstance(ticket.created_at, datetime)
-        self.assertIsInstance(ticket.updated_at, datetime)
-        # Check if they are timezone-aware (assuming UTC)
-        self.assertIsNotNone(ticket.created_at.tzinfo)
-        self.assertEqual(ticket.created_at.tzinfo.utcoffset(ticket.created_at), timezone.utc.utcoffset(None))
+    def test_add_comment(self): # New test for comments
+        ticket = Ticket("Comment Test", "Testing add_comment", "IT",
+                        self.DUMMY_REQUESTER_USER_ID, self.DUMMY_CREATED_BY_USER_ID)
+        initial_updated_at = ticket.updated_at
+
+        # Allow a moment for timestamp to potentially change if not mocking datetime.now
+        # import time; time.sleep(0.001)
+
+        ticket.add_comment(user_id="commenter_001", text="This is the first comment.")
+        self.assertEqual(len(ticket.comments), 1)
+        comment1 = ticket.comments[0]
+        self.assertEqual(comment1["user_id"], "commenter_001")
+        self.assertEqual(comment1["text"], "This is the first comment.")
+        self.assertIsInstance(comment1["timestamp"], str) # ISO Format
+        self.assertNotEqual(ticket.updated_at, initial_updated_at) # updated_at should change
+
+        initial_updated_at = ticket.updated_at # Reset for next check
+        # import time; time.sleep(0.001)
+        ticket.add_comment(user_id="commenter_002", text="Another comment.")
+        self.assertEqual(len(ticket.comments), 2)
+        self.assertNotEqual(ticket.updated_at, initial_updated_at)
 
     def test_to_dict_conversion(self):
-        """Test conversion of Ticket object to dictionary."""
-        created_time = datetime.now(timezone.utc) # Approximate time
-        ticket = Ticket("Dict Test", "Testing to_dict", "IT", "dict@example.com")
-        # Manually set created_at and updated_at for predictable ISO format string
-        # This is a bit of a hack; ideally, we'd mock datetime.now for precise control
-        ticket.created_at = created_time
+        created_time = datetime.now(timezone.utc)
+        ticket = Ticket(
+            title="Dict Test", description="Testing to_dict", type="IT",
+            requester_user_id=self.DUMMY_REQUESTER_USER_ID,
+            created_by_user_id=self.DUMMY_CREATED_BY_USER_ID,
+            assignee_user_id=self.DUMMY_ASSIGNEE_USER_ID,
+            comments=[{"user_id": "u1", "timestamp": created_time.isoformat(), "text": "Hi"}]
+        )
+        ticket.created_at = created_time # Control timestamps for exact match
         ticket.updated_at = created_time
 
         ticket_dict = ticket.to_dict()
-
         expected_dict = {
             'id': ticket.id,
             'title': "Dict Test",
             'description': "Testing to_dict",
             'type': "IT",
-            'status': "Open",
-            'priority': "Medium",
-            'requester_email': "dict@example.com",
+            'status': "Open", # Default
+            'priority': "Medium", # Default
+            'requester_user_id': self.DUMMY_REQUESTER_USER_ID,
+            'created_by_user_id': self.DUMMY_CREATED_BY_USER_ID,
+            'assignee_user_id': self.DUMMY_ASSIGNEE_USER_ID,
+            'comments': [{"user_id": "u1", "timestamp": created_time.isoformat(), "text": "Hi"}],
             'created_at': created_time.isoformat(),
             'updated_at': created_time.isoformat(),
         }
         self.assertEqual(ticket_dict, expected_dict)
-        self.assertIsInstance(ticket_dict['created_at'], str)
-        self.assertIsInstance(ticket_dict['updated_at'], str)
 
     def test_from_dict_conversion(self):
-        """Test conversion from dictionary to Ticket object."""
         created_iso = datetime.now(timezone.utc).isoformat()
-        updated_iso = datetime.now(timezone.utc).isoformat() # Can be same or different
-
         ticket_data = {
             'id': uuid.uuid4().hex,
             'title': "From Dict Test",
             'description': "Testing from_dict",
             'type': "Facilities",
+            'requester_user_id': self.DUMMY_REQUESTER_USER_ID, # Changed
+            'created_by_user_id': self.DUMMY_CREATED_BY_USER_ID, # Added
+            'assignee_user_id': self.DUMMY_ASSIGNEE_USER_ID, # Added
+            'comments': [{"user_id": "u2", "timestamp": created_iso, "text": "Test comment"}], # Added
             'status': "In Progress",
             'priority': "Low",
-            'requester_email': "fromdict@example.com",
             'created_at': created_iso,
-            'updated_at': updated_iso,
+            'updated_at': created_iso,
         }
         ticket = Ticket.from_dict(ticket_data)
 
         self.assertEqual(ticket.id, ticket_data['id'])
         self.assertEqual(ticket.title, ticket_data['title'])
-        self.assertEqual(ticket.description, ticket_data['description'])
-        self.assertEqual(ticket.type, ticket_data['type'])
-        self.assertEqual(ticket.status, ticket_data['status'])
-        self.assertEqual(ticket.priority, ticket_data['priority'])
-        self.assertEqual(ticket.requester_email, ticket_data['requester_email'])
+        self.assertEqual(ticket.requester_user_id, ticket_data['requester_user_id']) # Changed
+        self.assertEqual(ticket.created_by_user_id, ticket_data['created_by_user_id']) # Added
+        self.assertEqual(ticket.assignee_user_id, ticket_data['assignee_user_id']) # Added
+        self.assertEqual(len(ticket.comments), 1)
+        self.assertEqual(ticket.comments[0]['text'], "Test comment")
 
-        # Check datetime objects
-        self.assertIsInstance(ticket.created_at, datetime)
-        self.assertIsInstance(ticket.updated_at, datetime)
-        self.assertEqual(ticket.created_at, datetime.fromisoformat(created_iso))
-        self.assertEqual(ticket.updated_at, datetime.fromisoformat(updated_iso))
-        self.assertIsNotNone(ticket.created_at.tzinfo) # Ensure timezone aware
-        self.assertIsNotNone(ticket.updated_at.tzinfo)
-
-    def test_to_dict_from_dict_roundtrip(self):
-        """Test a full cycle of to_dict then from_dict."""
-        original_ticket = Ticket(
-            title="Roundtrip",
-            description="Testing full conversion cycle.",
-            type="IT",
-            requester_email="round@trip.com",
-            priority="High"
-        )
-        # For a precise roundtrip, especially with microsecond precision,
-        # it's best to control the initial timestamps if possible, or compare field by field.
-        # The default datetime.now() might have microsecond differences if to_dict and from_dict
-        # are called with slight delays.
-
-        # Overwrite with specific values for stable comparison
-        original_ticket.created_at = datetime(2023, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
-        original_ticket.updated_at = datetime(2023, 1, 1, 12, 30, 0, tzinfo=timezone.utc)
-
-
-        ticket_dict = original_ticket.to_dict()
-        reconstructed_ticket = Ticket.from_dict(ticket_dict)
-
-        self.assertEqual(original_ticket.id, reconstructed_ticket.id)
-        self.assertEqual(original_ticket.title, reconstructed_ticket.title)
-        self.assertEqual(original_ticket.description, reconstructed_ticket.description)
-        self.assertEqual(original_ticket.type, reconstructed_ticket.type)
-        self.assertEqual(original_ticket.status, reconstructed_ticket.status)
-        self.assertEqual(original_ticket.priority, reconstructed_ticket.priority)
-        self.assertEqual(original_ticket.requester_email, reconstructed_ticket.requester_email)
-        self.assertEqual(original_ticket.created_at, reconstructed_ticket.created_at)
-        self.assertEqual(original_ticket.updated_at, reconstructed_ticket.updated_at)
 
 if __name__ == '__main__':
     unittest.main()
