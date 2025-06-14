@@ -174,10 +174,17 @@ if __name__ == '__main__':
     app = QApplication(sys.argv)
     class DummyUserForMyTicketsView(User):
         def __init__(self, u="test_viewer", r="EndUser", uid="viewer_uid_123"):
-            self.username=u; self.role=r; self.user_id=uid # type: ignore
+            self.username = u
+            self.role = r
+            self.user_id = uid # type: ignore
             if not hasattr(self, 'ROLES') or self.ROLES is None:
                  class TR: __args__ = ('EndUser',); User.ROLES=TR; self.ROLES=TR # type: ignore
-        def set_password(self,p):pass; def check_password(self,p):return False
+
+        def set_password(self,p):
+            pass
+
+        def check_password(self,p):
+            return False
     test_user = DummyUserForMyTicketsView()
 
     _og_list_tickets = ticket_manager.list_tickets
