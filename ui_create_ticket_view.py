@@ -17,6 +17,7 @@ try:
     from kb_article import KBArticle # Added
     from kb_manager import search_articles, get_article # Added
 except ModuleNotFoundError:
+ main
     print("Error: Critical modules not found for CreateTicketView.", file=sys.stderr)
     class User: user_id: str = "fallback_user"; ROLES = None
     class KBArticle: article_id: str; title: str; content: str # Basic fallback
@@ -24,6 +25,61 @@ except ModuleNotFoundError:
     def add_attachment_to_ticket(tid,uid,src,oname): pass
     def search_articles(q,sf=None): return []
     def get_article(aid): return None
+    print("Warning: Critical modules not found for CreateTicketView. Using fallback definitions.", file=sys.stderr)
+    class User: # type: ignore
+        user_id: str = "fallback_user"
+        ROLES = None
+        # Add any other attributes/methods ui_create_ticket_view.py might expect from a User object
+        def __init__(self, username="fallback", role="EndUser", user_id="fallback_user"):
+            self.username = username
+            self.role = role
+            self.user_id = user_id
+
+    class KBArticle: # type: ignore
+        article_id: str
+        title: str
+        content: str
+        category: Optional[str] = None
+        keywords: Optional[List[str]] = None
+        # Add any other attributes/methods ui_create_ticket_view.py might expect
+        def __init__(self, article_id="fb_kb_id", title="Fallback KB", content="", author_user_id=""):
+            self.article_id = article_id
+            self.title = title
+            self.content = content
+            self.author_user_id = author_user_id # Example if needed by other parts
+
+    class _FallbackTicket:
+        def __init__(self, ticket_id="dummy_fb_id", title="Fallback Ticket", **extra_kwargs):
+            self.id = ticket_id
+            self.title = title
+            # Allow any other attributes that might be accessed by the calling code after creation
+            for key, value in extra_kwargs.items():
+                setattr(self, key, value)
+            # Ensure attributes accessed in handle_submit_ticket are present
+            if not hasattr(self, 'description'): self.description = ""
+            if not hasattr(self, 'type'): self.type = "IT"
+            if not hasattr(self, 'priority'): self.priority = "Medium"
+            if not hasattr(self, 'requester_user_id'): self.requester_user_id = "fallback_user"
+
+
+    def create_ticket(*args, **kwargs) -> _FallbackTicket: # type: ignore
+        print(f"Warning: Using fallback 'create_ticket'. Called with args: {args}, kwargs: {kwargs}", file=sys.stderr)
+        # Ensure the title is part of the kwargs for the fallback ticket
+        fb_title = kwargs.get("title", "Fallback Ticket Title")
+        return _FallbackTicket(title=fb_title, **kwargs)
+
+    def add_attachment_to_ticket(ticket_id: str, user_id: str, source_path: str, original_filename: str): # type: ignore
+        print(f"Warning: Using fallback 'add_attachment_to_ticket' for ticket {ticket_id}, file {original_filename}.", file=sys.stderr)
+        pass
+
+    def search_articles(query: str, search_fields: Optional[List[str]] = None) -> List[KBArticle]: # type: ignore
+        print(f"Warning: Using fallback 'search_articles' for query '{query}'.", file=sys.stderr)
+        return []
+
+    def get_article(article_id: str) -> Optional[KBArticle]: # type: ignore
+        print(f"Warning: Using fallback 'get_article' for ID '{article_id}'.", file=sys.stderr)
+        return None
+      feat/initial-ticketing-system
 
 
 class CreateTicketView(QWidget):
