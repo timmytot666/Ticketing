@@ -6,7 +6,8 @@ from PySide6.QtWidgets import (
     QLabel,
     QVBoxLayout,
     QStackedWidget,
-    QMenuBar,
+    QMenuBar, # Added QMenu
+    QMenu,    # Added QMenu
     QStatusBar,
     QMessageBox
 )
@@ -14,7 +15,7 @@ from PySide6.QtGui import QAction
 from PySide6.QtCore import Slot, Qt, QTimer
 
 from typing import Optional, Dict, Any
-from datetime import datetime # For _run_sla_checks_and_refresh_ui print
+from datetime import datetime
 
 try:
     from models import User
@@ -26,7 +27,8 @@ try:
     from ui_ticket_detail_view import TicketDetailView
     from ui_dashboard_view import DashboardView
     from ui_reporting_view import ReportingView
-    from ui_kb_article_view import KBArticleView # Added
+    from ui_kb_article_view import KBArticleView
+    from ui_user_management_view import UserManagementView # Added
 except ModuleNotFoundError:
     print("Error: Critical module not found. Using fallbacks.", file=sys.stderr)
     def check_and_send_sla_alerts(): print("Warning: Fallback check_and_send_sla_alerts called.")
@@ -49,6 +51,7 @@ except ModuleNotFoundError:
     DashboardView=type('DashboardView',(FallbackView,),{"__init__":lambda s,cu,p=None:FallbackView.__init__(s,"DashboardView",cu,p)})
     ReportingView=type('ReportingView',(FallbackView,),{"__init__":lambda s,cu,p=None:FallbackView.__init__(s,"ReportingView",cu,p)})
     KBArticleView=type('KBArticleView',(FallbackView,),{"__init__":lambda s,cu,p=None:FallbackView.__init__(s,"KBArticleView",cu,p)})
+    UserManagementView=type('UserManagementView',(FallbackView,),{"__init__":lambda s,cu,p=None:FallbackView.__init__(s,"UserManagementView",cu,p)})
 
 
 class MainWindow(QMainWindow):
@@ -94,11 +97,12 @@ class MainWindow(QMainWindow):
         self.view_menu.addSeparator();
         self.all_tickets_action = QAction("All Tickets", self); self.view_menu.addAction(self.all_tickets_action)
 
-        # Tools Menu (or add to View)
-        tools_menu = menu_bar.addMenu("&Tools")
+        tools_menu = menu_bar.addMenu("&Tools") # Ensured Tools menu is created or fetched
         self.dashboard_action = QAction("Dashboard", self); tools_menu.addAction(self.dashboard_action)
         self.reporting_action = QAction("Reporting", self); tools_menu.addAction(self.reporting_action)
-        self.kb_management_action = QAction("Knowledge Base", self); tools_menu.addAction(self.kb_management_action) # Added
+        self.kb_management_action = QAction("Knowledge Base", self); tools_menu.addAction(self.kb_management_action)
+        tools_menu.addSeparator() # Separator before User Management
+        self.user_management_action = QAction("User Management", self); tools_menu.addAction(self.user_management_action) # Added
 
         help_menu = menu_bar.addMenu("&Help"); about_action = QAction("About", self); help_menu.addAction(about_action)
 
@@ -108,7 +112,8 @@ class MainWindow(QMainWindow):
         self.all_tickets_action.triggered.connect(self.show_all_tickets_view)
         self.dashboard_action.triggered.connect(self.show_dashboard_view)
         self.reporting_action.triggered.connect(self.show_reporting_view)
-        self.kb_management_action.triggered.connect(self.show_kb_management_view) # Connected
+        self.kb_management_action.triggered.connect(self.show_kb_management_view)
+        self.user_management_action.triggered.connect(self.show_user_management_view) # Connected
         about_action.triggered.connect(self.on_placeholder_action)
 
     def _create_status_bar(self): # Unchanged
@@ -128,18 +133,20 @@ class MainWindow(QMainWindow):
         self.all_tickets_view = AllTicketsView(self.current_user, self); self.all_tickets_view.ticket_selected.connect(self.show_ticket_detail_view); self.stacked_widget.addWidget(self.all_tickets_view)
         self.ticket_detail_view = TicketDetailView(self.current_user, self);
         self.ticket_detail_view.ticket_updated.connect(self.handle_ticket_updated_in_detail_view)
-        self.ticket_detail_view.navigate_back.connect(self.show_all_tickets_view) # Or more context-aware back
+        self.ticket_detail_view.navigate_back.connect(self.show_all_tickets_view)
         self.stacked_widget.addWidget(self.ticket_detail_view)
         self.dashboard_view = DashboardView(self.current_user, self); self.stacked_widget.addWidget(self.dashboard_view)
         self.reporting_view = ReportingView(self.current_user, self); self.stacked_widget.addWidget(self.reporting_view)
-        self.kb_article_view = KBArticleView(self.current_user, self); self.stacked_widget.addWidget(self.kb_article_view) # Added
+        self.kb_article_view = KBArticleView(self.current_user, self); self.stacked_widget.addWidget(self.kb_article_view)
+        self.user_management_view = UserManagementView(self.current_user, self); self.stacked_widget.addWidget(self.user_management_view) # Added
 
         self.setCentralWidget(self.stacked_widget)
 
     def _get_ui_config_for_role(self, role: User.ROLES) -> Dict[str, Any]: # type: ignore # Modified
         actions_enabled = {
             'new_ticket':False, 'my_tickets':False, 'all_tickets':False,
-            'dashboard':False, 'view_inbox':True, 'reporting': False, 'kb_management': False # Added kb_management
+            'dashboard':False, 'view_inbox':True, 'reporting': False,
+            'kb_management': False, 'user_management': False # Added user_management
         }
         target_page = self.welcome_page
 
@@ -147,12 +154,13 @@ class MainWindow(QMainWindow):
             actions_enabled.update({'new_ticket': True, 'my_tickets': True})
             target_page = self.my_tickets_view
         elif role in ['Technician', 'Engineer']:
-            actions_enabled.update({'my_tickets': True, 'all_tickets': True, 'kb_management': True}) # KB for Techs/Engs
+            actions_enabled.update({'my_tickets': True, 'all_tickets': True, 'kb_management': True})
             target_page = self.all_tickets_view
-        elif role in ['TechManager', 'EngManager']:
+        elif role in ['TechManager', 'EngManager']: # Assuming these are admin-like roles
             actions_enabled.update({
                 'my_tickets': True, 'all_tickets': True,
-                'dashboard': True, 'reporting': True, 'kb_management': True # KB for Managers
+                'dashboard': True, 'reporting': True, 'kb_management': True,
+                'user_management': True # Enabled for managers
             })
             target_page = self.dashboard_view
 
@@ -164,7 +172,8 @@ class MainWindow(QMainWindow):
             'new_ticket': self.new_ticket_action, 'my_tickets': self.my_tickets_action,
             'all_tickets': self.all_tickets_action, 'dashboard': self.dashboard_action,
             'view_inbox': self.view_inbox_action, 'reporting': self.reporting_action,
-            'kb_management': self.kb_management_action # Added
+            'kb_management': self.kb_management_action,
+            'user_management': self.user_management_action # Added
         }
         for key, enabled in config['actions_enabled'].items():
             action_widget = actions_map.get(key)
@@ -176,7 +185,7 @@ class MainWindow(QMainWindow):
             elif hasattr(self,'welcome_page') and self.stacked_widget.indexOf(self.welcome_page)!=-1: self.stacked_widget.setCurrentWidget(self.welcome_page)
             elif self.stacked_widget.count()>0: self.stacked_widget.setCurrentIndex(0)
 
-    # ... (show_create_ticket_view, show_my_tickets_view, show_inbox_view, show_all_tickets_view, show_dashboard_view, show_reporting_view as before) ...
+    # ... (show_... slots for other views as before) ...
     @Slot()
     def show_create_ticket_view(self):
         if hasattr(self, 'create_ticket_view'): self.stacked_widget.setCurrentWidget(self.create_ticket_view)
@@ -197,18 +206,22 @@ class MainWindow(QMainWindow):
     def show_reporting_view(self):
         if hasattr(self, 'reporting_view'): self.stacked_widget.setCurrentWidget(self.reporting_view)
         else: QMessageBox.critical(self, "Error", "Reporting page is not available.")
+    @Slot()
+    def show_kb_management_view(self):
+        if hasattr(self, 'kb_article_view'): self.stacked_widget.setCurrentWidget(self.kb_article_view)
+        else: QMessageBox.critical(self, "Error", "Knowledge Base page is not available.")
 
     @Slot() # New slot
-    def show_kb_management_view(self):
-        if hasattr(self, 'kb_article_view') and hasattr(self, 'stacked_widget'):
-            self.stacked_widget.setCurrentWidget(self.kb_article_view)
+    def show_user_management_view(self):
+        if hasattr(self, 'user_management_view') and hasattr(self, 'stacked_widget'):
+            self.stacked_widget.setCurrentWidget(self.user_management_view)
         else:
-            QMessageBox.critical(self, "Error", "Knowledge Base page is not available.")
+            QMessageBox.critical(self, "Error", "User Management page is not available.")
 
     @Slot(str) # Unchanged
     def show_ticket_detail_view(self, ticket_id: str):
         if hasattr(self, 'ticket_detail_view'): self.ticket_detail_view.load_ticket_data(ticket_id); self.stacked_widget.setCurrentWidget(self.ticket_detail_view)
-        else: QMessageBox.critical(self, "Error", "Ticket Detail page not available.")
+        else: QMessageBox.critical(self, "Error", "Ticket Detail page is not available.")
     @Slot(str) # Unchanged
     def handle_ticket_updated_in_detail_view(self, ticket_id: str):
         if hasattr(self,'all_tickets_view') and self.all_tickets_view.isVisible(): self.all_tickets_view.load_and_display_tickets()
@@ -220,9 +233,10 @@ class MainWindow(QMainWindow):
 if __name__ == '__main__':
     import os; sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
     app = QApplication(sys.argv)
-    class DUFM(User): # DummyUserForMain
+    class DUFM(User):
         def __init__(self,u,r,uid="uid_dum_main"):super().__init__(username=u,role=r,user_id_val=uid) # type: ignore
-    # Test with a role that should have KB access, e.g., Technician or EngManager
-    test_user = DUFM(username="main_test_kb_user", role="Technician")
+    # Test with a TechManager role to see User Management by default (if it was their default page)
+    # Or just ensure the menu item is enabled.
+    test_user = DUFM(username="main_test_admin", role="TechManager")
     main_window = MainWindow(user=test_user)
     main_window.show(); sys.exit(app.exec())
