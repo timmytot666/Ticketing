@@ -134,7 +134,19 @@ class Ticket:
         ticket_id: Optional[str] = None,
         created_at: Optional[datetime] = None,
         updated_at: Optional[datetime] = None,
-        comments: Optional[List[Dict[str, str]]] = None
+        comments: Optional[List[Dict[str, str]]] = None,
+        # New SLA fields
+        sla_policy_id: Optional[str] = None,
+        response_due_at: Optional[datetime] = None,
+        resolution_due_at: Optional[datetime] = None,
+        responded_at: Optional[datetime] = None,
+        sla_paused_at: Optional[datetime] = None,
+        total_paused_duration_seconds: float = 0.0,
+        # New SLA notification tracking fields
+        response_sla_breach_notified: bool = False,
+        resolution_sla_breach_notified: bool = False,
+        response_sla_nearing_breach_notified: bool = False,
+        resolution_sla_nearing_breach_notified: bool = False
     ):
         if not title or not isinstance(title, str):
             raise ValueError("Title cannot be empty and must be a string.")
@@ -173,6 +185,21 @@ class Ticket:
         self.created_at: datetime = created_at or datetime.now(timezone.utc)
         self.updated_at: datetime = updated_at or datetime.now(timezone.utc)
 
+        # Initialize new SLA fields
+        self.sla_policy_id: Optional[str] = sla_policy_id
+        self.response_due_at: Optional[datetime] = response_due_at
+        self.resolution_due_at: Optional[datetime] = resolution_due_at
+        self.responded_at: Optional[datetime] = responded_at
+        self.sla_paused_at: Optional[datetime] = sla_paused_at
+        self.total_paused_duration_seconds: float = total_paused_duration_seconds if total_paused_duration_seconds is not None else 0.0
+
+        # Initialize new SLA notification tracking fields
+        self.response_sla_breach_notified: bool = response_sla_breach_notified
+        self.resolution_sla_breach_notified: bool = resolution_sla_breach_notified
+        self.response_sla_nearing_breach_notified: bool = response_sla_nearing_breach_notified
+        self.resolution_sla_nearing_breach_notified: bool = resolution_sla_nearing_breach_notified
+
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             'id': self.id,
@@ -187,10 +214,33 @@ class Ticket:
             'comments': self.comments,
             'created_at': self.created_at.isoformat(),
             'updated_at': self.updated_at.isoformat(),
+            # SLA fields serialization
+            'sla_policy_id': self.sla_policy_id,
+            'response_due_at': self.response_due_at.isoformat() if self.response_due_at else None,
+            'resolution_due_at': self.resolution_due_at.isoformat() if self.resolution_due_at else None,
+            'responded_at': self.responded_at.isoformat() if self.responded_at else None,
+            'sla_paused_at': self.sla_paused_at.isoformat() if self.sla_paused_at else None,
+            'total_paused_duration_seconds': self.total_paused_duration_seconds,
+            # SLA notification tracking fields serialization
+            'response_sla_breach_notified': self.response_sla_breach_notified,
+            'resolution_sla_breach_notified': self.resolution_sla_breach_notified,
+            'response_sla_nearing_breach_notified': self.response_sla_nearing_breach_notified,
+            'resolution_sla_nearing_breach_notified': self.resolution_sla_nearing_breach_notified,
         }
 
     @classmethod
     def from_dict(cls: Type['Ticket'], data: Dict[str, Any]) -> 'Ticket':
+        # Helper to parse ISO datetime strings, ensuring they become offset-aware (UTC)
+        def parse_datetime_utc(dt_str: Optional[str]) -> Optional[datetime]:
+            if dt_str is None:
+                return None
+            dt_obj = datetime.fromisoformat(dt_str)
+            # If fromisoformat results in naive datetime (no tz info in string), assume UTC.
+            # If string has 'Z' or offset, it's already aware.
+            if dt_obj.tzinfo is None:
+                return dt_obj.replace(tzinfo=timezone.utc)
+            return dt_obj.astimezone(timezone.utc) # Ensure it's UTC if it had other offset
+
         return cls(
             ticket_id=data.get('id'),
             title=data['title'],
@@ -200,10 +250,22 @@ class Ticket:
             created_by_user_id=data['created_by_user_id'],
             status=data.get('status', 'Open'),
             priority=data.get('priority', 'Medium'),
-            assignee_user_id=data.get('assignee_user_id'), # Changed
+            assignee_user_id=data.get('assignee_user_id'),
             comments=data.get('comments', []),
-            created_at=datetime.fromisoformat(data['created_at']) if data.get('created_at') else None,
-            updated_at=datetime.fromisoformat(data['updated_at']) if data.get('updated_at') else None
+            created_at=parse_datetime_utc(data.get('created_at')),
+            updated_at=parse_datetime_utc(data.get('updated_at')),
+            # SLA fields deserialization
+            sla_policy_id=data.get('sla_policy_id'),
+            response_due_at=parse_datetime_utc(data.get('response_due_at')),
+            resolution_due_at=parse_datetime_utc(data.get('resolution_due_at')),
+            responded_at=parse_datetime_utc(data.get('responded_at')),
+            sla_paused_at=parse_datetime_utc(data.get('sla_paused_at')),
+            total_paused_duration_seconds=float(data.get('total_paused_duration_seconds', 0.0)),
+            # SLA notification tracking fields deserialization
+            response_sla_breach_notified=data.get('response_sla_breach_notified', False),
+            resolution_sla_breach_notified=data.get('resolution_sla_breach_notified', False),
+            response_sla_nearing_breach_notified=data.get('response_sla_nearing_breach_notified', False),
+            resolution_sla_nearing_breach_notified=data.get('resolution_sla_nearing_breach_notified', False)
         )
 
     def __repr__(self) -> str:

@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
     QMessageBox
 )
 from PySide6.QtGui import QAction
-from PySide6.QtCore import Slot, Qt
+from PySide6.QtCore import Slot, Qt, QTimer # Added QTimer
 
 from typing import Optional, Dict, Any
 
@@ -24,9 +24,12 @@ try:
     from ui_all_tickets_view import AllTicketsView
     from ui_ticket_detail_view import TicketDetailView
     from ui_dashboard_view import DashboardView
-    from ui_reporting_view import ReportingView # Added
+    from ui_reporting_view import ReportingView
+    from notification_manager import check_and_send_sla_alerts # For QTimer
 except ModuleNotFoundError:
     print("Error: Critical module not found. Using fallbacks.", file=sys.stderr)
+    # Add check_and_send_sla_alerts to fallbacks if needed by __init__ directly
+    def check_and_send_sla_alerts(): print("Warning: Fallback check_and_send_sla_alerts called.")
     class User:
         ROLES = None; user_id: str
         def __init__(self, username: str, role: str, user_id_val: str = "fb_uid", *args, **kwargs):
@@ -64,6 +67,25 @@ class MainWindow(QMainWindow):
 
         self.setup_ui_for_role(self.current_user.role)
         self.update_notification_indicator()
+
+        # SLA Check Timer
+        self.sla_check_timer = QTimer(self)
+        self.sla_check_timer.timeout.connect(self._run_sla_checks_and_refresh_ui)
+        self.sla_check_timer.start(15 * 60 * 1000) # Every 15 minutes
+        # self.sla_check_timer.start(30 * 1000) # For testing: 30 seconds
+
+    def _run_sla_checks_and_refresh_ui(self):
+        print(f"Running periodic SLA checks at {datetime.now()}...") # For debugging
+        try:
+            check_and_send_sla_alerts() # This function handles its own errors internally
+            self.update_notification_indicator() # Refresh indicator after alerts might create new notifications
+            # Optionally, refresh current view if it might be affected by SLA changes (e.g. ticket list views)
+            # current_view = self.stacked_widget.currentWidget()
+            # if isinstance(current_view, (AllTicketsView, MyTicketsView)):
+            #    current_view.load_and_display_tickets() # Or a more specific refresh method
+        except Exception as e:
+            print(f"Error during scheduled SLA check or UI refresh: {e}", file=sys.stderr)
+
 
     def update_notification_indicator(self):
         if not hasattr(self, 'current_user') or not self.current_user or not hasattr(self.current_user, 'user_id'):
