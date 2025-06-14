@@ -5,14 +5,6 @@ from typing import List, Dict, Any, Optional, Tuple # Added Tuple for type hint
 
 from models import Ticket
 
-# Notification Manager import (already present with fallback)
-try:
-    from notification_manager import create_notification
-except ModuleNotFoundError:
-    def create_notification(user_id: str, message: str, ticket_id: Optional[str] = None): # type: ignore
-        print(f"Warning: create_notification fallback for user {user_id}, msg: {message[:30]}...")
-        pass
-
 # Settings Manager and SLA Calculator imports
 try:
     from settings_manager import get_matching_sla_policy, get_business_schedule, get_public_holidays
@@ -197,11 +189,19 @@ def update_ticket(ticket_id: str, **kwargs: Any) -> Optional[Ticket]:
         if ticket_to_update.responded_at is None and original_data['status'] == 'Open' and ticket_to_update.status == 'In Progress':
             ticket_to_update.responded_at = ticket_to_update.updated_at # Use ticket's update time for consistency
 
-    # Notifications (Status and Assignment) - existing logic from previous step
+    # Notifications (Status and Assignment)
+    # Import create_notification locally to avoid circular dependency at module level
+    try:
+        from notification_manager import create_notification
+    except ModuleNotFoundError:
+        def create_notification(user_id: str, message: str, ticket_id: Optional[str] = None): # type: ignore
+            print(f"Warning: create_notification fallback (local in update_ticket) for user {user_id}, msg: {message[:30]}...")
+            pass
+
     if status_changed:
         try:
             msg = f"Ticket '{ticket_to_update.title}' ({ticket_to_update.id[:8]}) status: {original_data['status']} -> {ticket_to_update.status}."
-            if ticket_to_update.requester_user_id: create_notification(ticket_to_update.requester_user_id, msg, ticket_to_update.id)
+            if ticket_to_update.requester_user_id: create_notification(user_id=ticket_to_update.requester_user_id, message=msg, ticket_id=ticket_to_update.id)
         except Exception as e: print(f"Error (status notification) for {ticket_id}: {e}", file=sys.stderr)
 
     assignee_changed = 'assignee_user_id' in kwargs and ticket_to_update.assignee_user_id != original_data['assignee_user_id']
@@ -260,15 +260,30 @@ def add_comment_to_ticket(ticket_id: str, user_id: str, comment_text: str) -> Op
         return None # Save failed
 
     # Comment Notifications
+    # Import create_notification locally to avoid circular dependency at module level
+    try:
+        from notification_manager import create_notification
+    except ModuleNotFoundError:
+        # This inner fallback is less likely to be hit if the one in update_ticket is defined,
+        # but kept for robustness if add_comment_to_ticket is called from elsewhere without update_ticket's import.
+        def create_notification(user_id: str, message: str, ticket_id: Optional[str] = None): # type: ignore
+            print(f"Warning: create_notification fallback (local in add_comment) for user {user_id}, msg: {message[:30]}...")
+            pass
+
     try:
         ref = f"'{ticket_to_update.title[:20]}...' ({ticket_to_update.id[:8]})"
         commenter_ref = f"user {user_id[:8]}"
         if ticket_to_update.requester_user_id != user_id:
-            create_notification(ticket_to_update.requester_user_id, f"New comment on Ticket {ref} by {commenter_ref}.", ticket_to_update.id)
+            if ticket_to_update.requester_user_id: # Ensure requester_user_id is not None
+                 create_notification(user_id=ticket_to_update.requester_user_id,
+                                     message=f"New comment on Ticket {ref} by {commenter_ref}.",
+                                     ticket_id=ticket_to_update.id)
         if ticket_to_update.assignee_user_id and \
            ticket_to_update.assignee_user_id != user_id and \
-           ticket_to_update.assignee_user_id != ticket_to_update.requester_user_id: # Avoid double if assignee is requester
-            create_notification(ticket_to_update.assignee_user_id, f"New comment on assigned Ticket {ref} by {commenter_ref}.", ticket_to_update.id)
+           ticket_to_update.assignee_user_id != ticket_to_update.requester_user_id:
+            create_notification(user_id=ticket_to_update.assignee_user_id,
+                                message=f"New comment on assigned Ticket {ref} by {commenter_ref}.",
+                                ticket_id=ticket_to_update.id)
     except Exception as e: print(f"Error (comment notification) for {ticket_id}: {e}", file=sys.stderr)
 
     return ticket_to_update
