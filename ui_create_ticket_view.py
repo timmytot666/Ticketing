@@ -17,6 +17,14 @@ try:
     from kb_article import KBArticle # Added
     from kb_manager import search_articles, get_article # Added
 except ModuleNotFoundError:
+ main
+    print("Error: Critical modules not found for CreateTicketView.", file=sys.stderr)
+    class User: user_id: str = "fallback_user"; ROLES = None
+    class KBArticle: article_id: str; title: str; content: str # Basic fallback
+    def create_ticket(*args, **kwargs): class DT: id="d_id";title=kwargs.get("title","D"); return DT()
+    def add_attachment_to_ticket(tid,uid,src,oname): pass
+    def search_articles(q,sf=None): return []
+    def get_article(aid): return None
     print("Warning: Critical modules not found for CreateTicketView. Using fallback definitions.", file=sys.stderr)
     class User: # type: ignore
         user_id: str = "fallback_user"
@@ -71,6 +79,7 @@ except ModuleNotFoundError:
     def get_article(article_id: str) -> Optional[KBArticle]: # type: ignore
         print(f"Warning: Using fallback 'get_article' for ID '{article_id}'.", file=sys.stderr)
         return None
+      feat/initial-ticketing-system
 
 
 class CreateTicketView(QWidget):
