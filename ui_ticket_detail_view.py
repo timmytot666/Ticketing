@@ -24,9 +24,65 @@ try:
     from kb_manager import get_article as kb_get_article
 except ModuleNotFoundError:
     print("Error: Critical modules not found for TicketDetailView/KBSearchDialog.", file=sys.stderr)
-    class User: user_id: str = "fb_user"; ROLES = None
-    class Ticket: def __init__(self, **kwargs): [setattr(self,k,v) for k,v in kwargs.items()]; self.attachments = []; self.comments = []
-    class KBArticle: article_id: str; title: str; content: str
+
+    # Imports needed for FallbackTicket default values
+    from datetime import datetime, timezone
+    from typing import Optional, List, Any # Any can be used if Dict not critical for fallback type hint
+
+    class User: # type: ignore
+        user_id: str = "fb_user"
+        ROLES = None
+        def __init__(self, username="fb_user", role="EndUser", user_id="fb_user_id"): # Basic init
+            self.username = username
+            self.role = role
+            self.user_id = user_id
+
+    class Ticket: # Fallback Ticket class
+        def __init__(self, **kwargs: Any):
+            # Initialize default attributes that TicketDetailView might access
+            self.id: str = "fb_ticket_id"
+            self.title: str = "Fallback Ticket"
+            self.description: str = "Fallback description"
+            self.status: str = "Open"
+            self.priority: str = "Medium"
+            self.type: str = "IT"
+            self.requester_user_id: str = "fb_requester_id"
+            self.assignee_user_id: Optional[str] = None
+            self.created_by_user_id: str = "fb_creator_id" # If used by view logic
+            self.created_at: datetime = datetime.now(timezone.utc)
+            self.updated_at: datetime = datetime.now(timezone.utc)
+
+            self.attachments: List[Dict[str, Any]] = [] # Default
+            self.comments: List[Dict[str, Any]] = []    # Default
+
+            # SLA related fields (as used in TicketDetailView)
+            self.sla_policy_id: Optional[str] = None
+            self.response_due_at: Optional[datetime] = None
+            self.resolution_due_at: Optional[datetime] = None
+            self.responded_at: Optional[datetime] = None
+            self.sla_paused_at: Optional[datetime] = None
+            self.total_paused_duration_seconds: float = 0.0
+
+            # Apply any kwargs passed, potentially overriding defaults
+            for key, value in kwargs.items():
+                setattr(self, key, value)
+
+    class KBArticle: # type: ignore
+        article_id: str = "fb_kb_id"
+        title: str = "Fallback KB Article"
+        content: str = "Fallback content"
+        # Add other fields if necessary for fallback usage in this view
+        category: Optional[str] = None
+        keywords: Optional[List[str]] = None
+        author_user_id: str = "fb_author"
+        created_at: datetime = datetime.now(timezone.utc)
+        updated_at: datetime = datetime.now(timezone.utc)
+
+        def __init__(self, **kwargs: Any): # Allow kwargs for flexibility
+            for key, value in kwargs.items():
+                setattr(self, key, value)
+
+
     def get_ticket(tid): return None; def update_ticket(tid, **kwargs): return None
     def add_comment_to_ticket(tid,uid,txt): return None; def add_attachment_to_ticket(tid,uid,src,oname): return None
     def remove_attachment_from_ticket(tid,attid): return None; ATTACHMENT_DIR = "ticket_attachments_fallback"
