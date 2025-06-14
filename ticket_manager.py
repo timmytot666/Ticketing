@@ -1,7 +1,10 @@
 import json
 import os
-from datetime import datetime, timezone, date # Added date for type hint
-from typing import List, Dict, Any, Optional, Tuple # Added Tuple for type hint
+import shutil # Added for file operations
+import uuid # Added for attachment ID
+import mimetypes # Added for mimetype guessing
+from datetime import datetime, timezone, date
+from typing import List, Dict, Any, Optional, Tuple
 
 from models import Ticket
 
@@ -285,5 +288,142 @@ def add_comment_to_ticket(ticket_id: str, user_id: str, comment_text: str) -> Op
                                 message=f"New comment on assigned Ticket {ref} by {commenter_ref}.",
                                 ticket_id=ticket_to_update.id)
     except Exception as e: print(f"Error (comment notification) for {ticket_id}: {e}", file=sys.stderr)
+
+    return ticket_to_update
+
+
+ATTACHMENT_DIR = "ticket_attachments" # Directory to store attachments
+
+def add_attachment_to_ticket(
+    ticket_id: str,
+    uploader_user_id: str,
+    source_file_path: str,
+    original_filename: str
+) -> Optional[Ticket]:
+    """Adds attachment metadata to a ticket, copies the file to a storage directory, and saves the ticket."""
+    if not all([ticket_id, uploader_user_id, source_file_path, original_filename]):
+        raise ValueError("Ticket ID, uploader ID, source file path, and original filename are required.")
+    if not os.path.exists(source_file_path):
+        raise FileNotFoundError(f"Source file not found: {source_file_path}")
+    if not os.path.isfile(source_file_path):
+        raise ValueError(f"Source path is not a file: {source_file_path}")
+
+    os.makedirs(ATTACHMENT_DIR, exist_ok=True)
+
+    attachment_id = "att_" + uuid.uuid4().hex
+    _, file_extension = os.path.splitext(original_filename)
+    stored_filename = f"{attachment_id}{file_extension}"
+    destination_path = os.path.join(ATTACHMENT_DIR, stored_filename)
+
+    try:
+        shutil.copy2(source_file_path, destination_path)
+    except IOError as e:
+        print(f"Error copying attachment file for ticket {ticket_id}: {e}", file=sys.stderr)
+        raise
+
+    filesize = os.path.getsize(destination_path)
+    mimetype, _ = mimetypes.guess_type(destination_path)
+    mimetype = mimetype or 'application/octet-stream'
+
+    attachment_metadata = {
+        "attachment_id": attachment_id,
+        "original_filename": original_filename,
+        "stored_filename": stored_filename,
+        "uploader_user_id": uploader_user_id,
+        "uploaded_at": datetime.now(timezone.utc).isoformat(),
+        "filesize": filesize,
+        "mimetype": mimetype
+    }
+
+    tickets = _load_tickets()
+    ticket_to_update: Optional[Ticket] = None
+    ticket_index: int = -1
+    for i, t in enumerate(tickets):
+        if t.id == ticket_id:
+            ticket_to_update = t
+            ticket_index = i
+            break
+
+    if not ticket_to_update:
+        try:
+            if os.path.exists(destination_path): os.remove(destination_path)
+        except OSError as e_del:
+            print(f"Error cleaning up orphaned attachment file {destination_path}: {e_del}", file=sys.stderr)
+        return None
+
+    if not hasattr(ticket_to_update, 'attachments') or ticket_to_update.attachments is None:
+         ticket_to_update.attachments = []
+
+    ticket_to_update.attachments.append(attachment_metadata)
+    ticket_to_update.updated_at = datetime.now(timezone.utc)
+
+    tickets[ticket_index] = ticket_to_update
+    try:
+        _save_tickets(tickets)
+    except Exception as e_save:
+        print(f"Error saving ticket after adding attachment {attachment_id} to ticket {ticket_id}: {e_save}", file=sys.stderr)
+        try:
+            if os.path.exists(destination_path): os.remove(destination_path)
+            print(f"Rolled back file copy for attachment {attachment_id} due to save error.", file=sys.stderr)
+        except OSError as e_del_rollback:
+            print(f"Error rolling back attachment file {destination_path}: {e_del_rollback}", file=sys.stderr)
+        return None
+
+    return ticket_to_update
+
+
+def remove_attachment_from_ticket(ticket_id: str, attachment_id: str) -> Optional[Ticket]:
+    """Removes attachment metadata from a ticket, deletes the file from storage, and saves the ticket."""
+    if not ticket_id or not attachment_id:
+        raise ValueError("Ticket ID and Attachment ID are required.")
+
+    tickets = _load_tickets()
+    ticket_to_update: Optional[Ticket] = None
+    ticket_index: int = -1
+    for i, t in enumerate(tickets):
+        if t.id == ticket_id:
+            ticket_to_update = t
+            ticket_index = i
+            break
+
+    if not ticket_to_update:
+        return None
+
+    if not hasattr(ticket_to_update, 'attachments') or ticket_to_update.attachments is None:
+        return ticket_to_update
+
+    attachment_to_remove_metadata: Optional[Dict[str, Any]] = None
+
+    new_attachments_list = []
+    for att in ticket_to_update.attachments:
+        if att.get("attachment_id") == attachment_id:
+            attachment_to_remove_metadata = att
+        else:
+            new_attachments_list.append(att)
+
+    if attachment_to_remove_metadata is None:
+        return ticket_to_update
+
+    ticket_to_update.attachments = new_attachments_list
+
+    stored_filename = attachment_to_remove_metadata.get("stored_filename")
+    if stored_filename:
+        file_path_to_delete = os.path.join(ATTACHMENT_DIR, stored_filename)
+        if os.path.exists(file_path_to_delete):
+            try:
+                os.remove(file_path_to_delete)
+            except OSError as e:
+                print(f"Error deleting attachment file {file_path_to_delete}: {e}", file=sys.stderr)
+        else:
+            print(f"Warning: Attachment file not found for deletion: {file_path_to_delete}", file=sys.stderr)
+
+    ticket_to_update.updated_at = datetime.now(timezone.utc)
+    tickets[ticket_index] = ticket_to_update
+
+    try:
+        _save_tickets(tickets)
+    except Exception as e_save:
+        print(f"Error saving ticket after removing attachment {attachment_id} from ticket {ticket_id}: {e_save}", file=sys.stderr)
+        return None
 
     return ticket_to_update
