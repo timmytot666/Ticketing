@@ -146,7 +146,9 @@ class Ticket:
         response_sla_breach_notified: bool = False,
         resolution_sla_breach_notified: bool = False,
         response_sla_nearing_breach_notified: bool = False,
-        resolution_sla_nearing_breach_notified: bool = False
+        resolution_sla_nearing_breach_notified: bool = False,
+        # New field for attachments
+        attachments: Optional[List[Dict[str, Any]]] = None
     ):
         if not title or not isinstance(title, str):
             raise ValueError("Title cannot be empty and must be a string.")
@@ -199,6 +201,9 @@ class Ticket:
         self.response_sla_nearing_breach_notified: bool = response_sla_nearing_breach_notified
         self.resolution_sla_nearing_breach_notified: bool = resolution_sla_nearing_breach_notified
 
+        # Initialize attachments
+        self.attachments: List[Dict[str, Any]] = attachments if attachments is not None else []
+
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -226,6 +231,8 @@ class Ticket:
             'resolution_sla_breach_notified': self.resolution_sla_breach_notified,
             'response_sla_nearing_breach_notified': self.response_sla_nearing_breach_notified,
             'resolution_sla_nearing_breach_notified': self.resolution_sla_nearing_breach_notified,
+            # Add attachments to dict
+            "attachments": self.attachments,
         }
 
     @classmethod
@@ -265,7 +272,9 @@ class Ticket:
             response_sla_breach_notified=data.get('response_sla_breach_notified', False),
             resolution_sla_breach_notified=data.get('resolution_sla_breach_notified', False),
             response_sla_nearing_breach_notified=data.get('response_sla_nearing_breach_notified', False),
-            resolution_sla_nearing_breach_notified=data.get('resolution_sla_nearing_breach_notified', False)
+            resolution_sla_nearing_breach_notified=data.get('resolution_sla_nearing_breach_notified', False),
+            # Add attachments from dict
+            attachments=data.get('attachments', []) # Default to empty list if not present
         )
 
     def __repr__(self) -> str:
