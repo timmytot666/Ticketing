@@ -24,8 +24,19 @@ class TestUserModel(unittest.TestCase):
         self.assertEqual(user.username, "testuser")
         self.assertEqual(user.role, "EndUser")
         self.assertIsNotNone(user.password_hash)
+        self.assertTrue(user.is_active) # Default
+        self.assertFalse(user.force_password_reset) # Default
         self.assertTrue(user.check_password("password123"))
         self.assertFalse(user.check_password("wrongpassword"))
+
+    def test_user_creation_with_active_reset_flags(self):
+        user1 = User(username="activeuser", role="EndUser", is_active=True, force_password_reset=False)
+        self.assertTrue(user1.is_active)
+        self.assertFalse(user1.force_password_reset)
+
+        user2 = User(username="inactiveuser", role="Technician", is_active=False, force_password_reset=True)
+        self.assertFalse(user2.is_active)
+        self.assertTrue(user2.force_password_reset)
 
     def test_user_creation_invalid_username(self):
         with self.assertRaisesRegex(ValueError, "Username cannot be empty."):
@@ -51,27 +62,46 @@ class TestUserModel(unittest.TestCase):
 
 
     def test_user_to_dict_from_dict_roundtrip(self):
-        original_user = User(username="dictuser", role="TechManager")
+        original_user = User(username="dictuser", role="TechManager", is_active=False, force_password_reset=True)
         original_user.set_password("dictpass")
-        # Manually set user_id for predictable dict if needed, though default is fine for roundtrip
-        # original_user.user_id = "fixed_user_id_for_dict_test"
+        original_user.user_id = "fixed_user_id_for_dict_test" # Fixed for predictability
 
         user_dict = original_user.to_dict()
 
-        self.assertEqual(user_dict["username"], "dictuser")
-        self.assertEqual(user_dict["role"], "TechManager")
-        self.assertEqual(user_dict["user_id"], original_user.user_id)
-        self.assertEqual(user_dict["password_hash"], original_user.password_hash)
+        expected_dict = {
+            "user_id": "fixed_user_id_for_dict_test",
+            "username": "dictuser",
+            "password_hash": original_user.password_hash,
+            "role": "TechManager",
+            "is_active": False,
+            "force_password_reset": True
+        }
+        self.assertEqual(user_dict, expected_dict)
 
         reconstructed_user = User.from_dict(user_dict)
         self.assertEqual(reconstructed_user.user_id, original_user.user_id)
         self.assertEqual(reconstructed_user.username, original_user.username)
         self.assertEqual(reconstructed_user.role, original_user.role)
         self.assertEqual(reconstructed_user.password_hash, original_user.password_hash)
+        self.assertEqual(reconstructed_user.is_active, False)
+        self.assertEqual(reconstructed_user.force_password_reset, True)
 
         # Check password still works after reconstruction
         self.assertTrue(reconstructed_user.check_password("dictpass"))
         self.assertFalse(reconstructed_user.check_password("wrongpass"))
+
+    def test_user_from_dict_defaults_for_missing_flags(self):
+        # Data that might come from an older version without the new flags
+        old_user_data = {
+            "user_id": "old_user_id",
+            "username": "olduser",
+            "password_hash": generate_password_hash("oldpass"),
+            "role": "EndUser"
+        }
+        reconstructed_user = User.from_dict(old_user_data)
+        self.assertEqual(reconstructed_user.username, "olduser")
+        self.assertTrue(reconstructed_user.is_active) # Should default to True
+        self.assertFalse(reconstructed_user.force_password_reset) # Should default to False
 
 class TestNotificationModel(unittest.TestCase):
     def test_notification_creation_success(self):

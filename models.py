@@ -19,7 +19,9 @@ except ImportError:
 class User:
     ROLES = Literal['EndUser', 'Technician', 'Engineer', 'TechManager', 'EngManager']
 
-    def __init__(self, username: str, role: ROLES, user_id: Optional[str] = None, password_hash: Optional[str] = None):
+    def __init__(self, username: str, role: ROLES, user_id: Optional[str] = None,
+                 password_hash: Optional[str] = None,
+                 is_active: bool = True, force_password_reset: bool = False): # Added new fields with defaults
         if not username:
             raise ValueError("Username cannot be empty.")
         if role not in getattr(self.ROLES, '__args__', []): # Handle Literal for older Pythons if needed
@@ -40,6 +42,8 @@ class User:
         # _password_hash stores the hash. If password_hash is provided during init (e.g. from_dict), store it directly.
         self._password_hash: Optional[str] = password_hash
         self.role: User.ROLES = role
+        self.is_active: bool = is_active
+        self.force_password_reset: bool = force_password_reset
 
     def set_password(self, password: str):
         if not password:
@@ -62,17 +66,21 @@ class User:
         return {
             "user_id": self.user_id,
             "username": self.username,
-            "password_hash": self._password_hash, # Store the hash
+            "password_hash": self._password_hash,
             "role": self.role,
+            "is_active": self.is_active,
+            "force_password_reset": self.force_password_reset
         }
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'User':
         return cls(
             username=data["username"],
-            role=data["role"],
+            role=data["role"], # Role should always be present
             user_id=data.get("user_id"),
-            password_hash=data.get("password_hash") # Retrieve the hash
+            password_hash=data.get("password_hash"),
+            is_active=data.get("is_active", True), # Default to True if missing
+            force_password_reset=data.get("force_password_reset", False) # Default to False
         )
 
     def __repr__(self) -> str:
