@@ -258,8 +258,16 @@ if __name__ == '__main__':
 
     app = QApplication(sys.argv)
     class DUFCV(User): # DummyUserForCreateView
-        def __init__(self, u="test_c", r="EndUser", uid="c_uid"): self.username=u;self.role=r;self.user_id=uid # type: ignore
-        def set_password(self,p):pass; def check_password(self,p):return False
+        def __init__(self, u="test_c", r="EndUser", uid="c_uid"):
+            self.username=u
+            self.role=r
+            self.user_id=uid # type: ignore
+
+        def set_password(self,p):
+            pass
+
+        def check_password(self,p):
+            return False
     tu = DUFCV()
 
     # Mock kb_manager for standalone UI test
@@ -278,8 +286,21 @@ if __name__ == '__main__':
 
     # Mock ticket_manager as before
     _og_ct = ticket_manager.create_ticket; _og_aat = ticket_manager.add_attachment_to_ticket
-    def mct(*a,**kwa): class DT:id="T_NEW";title=kwa.get("title"); return DT();
-    def maat(*a,**kwa): pass
+
+    def mct(*a,**kwa):
+        class DT:
+            def __init__(self, ticket_id="T_NEW_FALLBACK", title="Fallback Title"):
+                self.id = ticket_id
+                self.title = title
+
+        # Ensure the instance uses kwargs if provided, otherwise defaults
+        dt_title = kwa.get("title", "Default Mock Title")
+        # If other attributes from kwargs are expected on DT, they should be handled here
+        return DT(title=dt_title)
+
+    def maat(*a,**kwa):
+        pass
+
     ticket_manager.create_ticket=mct; ticket_manager.add_attachment_to_ticket=maat
 
     v = CreateTicketView(current_user=tu); v.show()
