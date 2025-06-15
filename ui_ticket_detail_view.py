@@ -85,11 +85,6 @@ except ModuleNotFoundError:
             for key, value in kwargs.items():
                 setattr(self, key, value)
 
-    def get_ticket(tid): return None; def update_ticket(tid, **kwargs): return None
-    def add_comment_to_ticket(tid,uid,txt): return None; def add_attachment_to_ticket(tid,uid,src,oname): return None
-    def remove_attachment_from_ticket(tid,attid): return None; ATTACHMENT_DIR = "ticket_attachments_fallback"
-    def get_sla_policies(): return []; def kb_search_articles(q, sf=None): return []; def kb_get_article(aid): return None
-
     def get_ticket(tid): return None
     def update_ticket(tid, **kwargs): return None
     def add_comment_to_ticket(tid,uid,txt): return None
