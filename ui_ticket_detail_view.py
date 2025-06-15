@@ -233,13 +233,6 @@ class TicketDetailView(QWidget):
         if not ticket: self.sla_status_label.setText("SLA Status: N/A"); return
         status_parts = []; now = datetime.now(timezone.utc)
         if ticket.sla_paused_at: status_parts.append(f"Paused (since {self._format_datetime_display(ticket.sla_paused_at)})")
-        if ticket.responded_at: resp_status = f"Responded: {self._format_datetime_display(ticket.responded_at)}"; (ticket.response_due_at and ticket.responded_at > ticket.response_due_at) and (resp_status += " (LATE)"); status_parts.append(resp_status)
-        elif ticket.response_due_at: status_parts.append("Response: OVERDUE" if now > ticket.response_due_at else f"Response Due: {self._format_timedelta(ticket.response_due_at - now)}")
-        else: status_parts.append("Response: N/A")
-        if ticket.status == 'Closed': reso_status = f"Resolved: {self._format_datetime_display(ticket.updated_at)}"; (ticket.resolution_due_at and ticket.updated_at > ticket.resolution_due_at) and (reso_status += " (LATE)"); status_parts.append(reso_status)
-        elif ticket.resolution_due_at: status_parts.append("Resolution: OVERDUE" if now > ticket.resolution_due_at else f"Resolution Due: {self._format_timedelta(ticket.resolution_due_at - now)}")
-        else: status_parts.append("Resolution: N/A")
-
         if ticket.responded_at:
             resp_status = f"Responded: {self._format_datetime_display(ticket.responded_at)}"
             if ticket.response_due_at and ticket.responded_at > ticket.response_due_at:
