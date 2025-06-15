@@ -349,7 +349,6 @@ class TicketDetailView(QWidget):
     def handle_upload_staged_attachments(self): # Unchanged
         if not self.current_ticket_id: QMessageBox.warning(self, "No Ticket", "No ticket loaded."); return
         if not self.staged_files_for_upload: QMessageBox.information(self, "No Files", "No files staged."); return
-        sc=0;for sp,on in list(self.staged_files_for_upload):
         sc=0
         for sp,on in list(self.staged_files_for_upload):
             try:
