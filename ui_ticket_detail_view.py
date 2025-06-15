@@ -9,9 +9,6 @@ from PySide6.QtWidgets import (
     QFileDialog, QListWidget, QListWidgetItem, QToolButton, QSizePolicy,
     QDialog, QDialogButtonBox, QTextBrowser # Added QTextBrowser
 )
-from PySide6.QtCore import Slot, Qt, Signal, QSize, QUrl, QDesktopServices
-from PySide6.QtGui import QFont, QIcon
-
 from PySide6.QtCore import Slot, Qt, Signal, QSize, QUrl
 from PySide6.QtGui import QFont, QIcon, QDesktopServices
 
