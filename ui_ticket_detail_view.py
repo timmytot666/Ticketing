@@ -214,7 +214,6 @@ class TicketDetailView(QWidget):
         self.response_due_label.setText(self._format_datetime_display(ticket.response_due_at))
         self.resolution_due_label.setText(self._format_datetime_display(ticket.resolution_due_at))
         self._calculate_and_display_sla_status(ticket); self._populate_comments(); self._populate_current_attachments(); self._apply_role_permissions()
-    def _populate_current_attachments(self):  # Unchanged from previous step
 
     def _populate_current_attachments(self): # Unchanged from previous step
         self.current_attachments_list_widget.clear()
