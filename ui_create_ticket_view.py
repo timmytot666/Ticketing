@@ -103,7 +103,9 @@ class CreateTicketView(QWidget):
         title_and_suggestions_layout.setSpacing(2) # Reduce spacing
         title_and_suggestions_layout.addWidget(self.title_edit)
         title_and_suggestions_layout.addWidget(self.kb_suggestions_list)
-        form_section_layout.setWidget(form_section_layout.rowCount()-1, QFormLayout.FieldRole, title_and_suggestions_layout)
+        container_widget = QWidget()
+        container_widget.setLayout(title_and_suggestions_layout)
+        form_section_layout.setWidget(form_section_layout.rowCount()-1, QFormLayout.FieldRole, container_widget)
 
 
         self.description_edit = QTextEdit(); self.description_edit.setPlaceholderText("Detailed description")
