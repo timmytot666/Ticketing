@@ -8,6 +8,13 @@ from typing import List, Dict, Any, Optional, Tuple
 
 from models import Ticket
 
+try:
+    from user_manager import get_user_by_username
+except ModuleNotFoundError:
+    print("Warning: user_manager.py not found. Assignee username lookup will not work.", file=sys.stderr)
+    def get_user_by_username(username: str) -> Optional[Any]: # Fallback
+        return None
+
 # Settings Manager and SLA Calculator imports
 try:
     from settings_manager import get_matching_sla_policy, get_business_schedule, get_public_holidays
@@ -129,26 +136,60 @@ def update_ticket(ticket_id: str, **kwargs: Any) -> Optional[Ticket]:
         'priority': ticket_to_update.priority,
         'type': ticket_to_update.type
     }
-    updated_fields = False
+    updated_fields = False # Initialize before username processing
 
+    # Handle assignee_username if provided
+    if 'assignee_username' in kwargs:
+        username_to_assign = kwargs.pop('assignee_username', None)
+        actual_assignee_user_id: Optional[str] = None
+        if username_to_assign and isinstance(username_to_assign, str) and username_to_assign.strip():
+            assignee_user_object = get_user_by_username(username_to_assign.strip())
+            if assignee_user_object is None:
+                raise ValueError(f"Assignee username '{username_to_assign.strip()}' not found.")
+            actual_assignee_user_id = assignee_user_object.user_id
+        # If username_to_assign is empty or None, actual_assignee_user_id remains None (unassign)
+
+        # Only mark as updated if the derived ID is different from current
+        if ticket_to_update.assignee_user_id != actual_assignee_user_id:
+            kwargs['assignee_user_id'] = actual_assignee_user_id
+            # updated_fields = True # This will be set later when iterating kwargs
+        else:
+            # If the username maps to the same user ID, no change needed for this field
+            # We don't want to process assignee_user_id further if it's not changing.
+            # However, if it was the *only* thing passed in kwargs (as assignee_username)
+            # and it resolved to the current ID, then updated_fields might remain False.
+            # The loop below will handle setting updated_fields correctly if other fields are changing.
+            # If assignee_username was the only kwarg and it resolved to the current ID,
+            # we effectively do nothing for this field.
+            pass
+
+
+    # Process other valid fields and the potentially derived assignee_user_id
     valid_fields = ['title', 'description', 'type', 'status', 'priority', 'assignee_user_id']
+    fields_actually_changed_in_loop = False
     for key, value in kwargs.items():
         if key in valid_fields:
             # Basic validation (can be more granular)
             if key in ['title', 'description'] and (not isinstance(value, str) or not value):
                 raise ValueError(f"{key.capitalize()} cannot be empty.")
-            if key == 'assignee_user_id' and value is not None and (not isinstance(value, str) or not value.strip()):
-                # Allow None or non-empty string. Empty string "" means unassign.
-                value = None if isinstance(value, str) and not value.strip() else value
+
+            if key == 'assignee_user_id':
+                # Value here is the ID, either passed directly or derived from username
+                if value is not None and (not isinstance(value, str) or not value.strip()):
+                    value = None # Allow empty string to unassign
                 if value is not None and not isinstance(value, str): # After "" -> None, check type if not None
                      raise ValueError("Assignee User ID must be a string or None.")
 
             # Actual update
             if getattr(ticket_to_update, key) != value:
                 setattr(ticket_to_update, key, value)
-                updated_fields = True
+                fields_actually_changed_in_loop = True
 
-    if not updated_fields: return ticket_to_update # No actual changes to attributes
+    # Determine if any update actually happened
+    if not fields_actually_changed_in_loop:
+        # This means that after processing assignee_username (if any) and all other kwargs,
+        # no attribute on ticket_to_update was actually changed from its original value.
+        return ticket_to_update # No actual changes to attributes
 
     ticket_to_update.updated_at = datetime.now(timezone.utc)
 
