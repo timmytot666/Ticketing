@@ -6,8 +6,8 @@ from PySide6.QtWidgets import (
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
     QGroupBox, QApplication, QMessageBox
 )
-from PySide6.QtCore import Slot, Qt, QShowEvent # Added QShowEvent
-from PySide6.QtGui import QFont
+from PySide6.QtCore import Slot, Qt
+from PySide6.QtGui import QFont, QShowEvent
 
 from typing import Optional, List, Dict, Any
 
@@ -272,7 +272,8 @@ if __name__ == '__main__':
                  class TR: __args__ = ('EndUser', 'Technician', 'Engineer', 'TechManager', 'EngManager')
                  User.ROLES = TR #type: ignore
             self.ROLES = User.ROLES #type: ignore
-        def set_password(self,p):pass; def check_password(self,p):return False
+        def set_password(self,p):pass
+        def check_password(self,p):return False
 
     # Mock user_manager functions for standalone UI test
     _MOCK_USERS_DB: List[User] = []
