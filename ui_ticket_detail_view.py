@@ -182,7 +182,23 @@ class TicketDetailView(QWidget):
 
         self.setLayout(main_layout)
 
-    # ... (load_ticket_data, _format_datetime_display, _populate_current_attachments, _format_timedelta, _calculate_and_display_sla_status as before) ...
+    def _format_datetime_display(self, dt: Optional[datetime]) -> str:
+        if dt is None:
+            return "N/A"
+        # Ensure datetime is timezone-aware (assuming UTC if naive)
+        # Naive datetime objects from fromisoformat might occur if 'Z' is not in string
+        if dt.tzinfo is None or dt.tzinfo.utcoffset(dt) is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+
+        try:
+            # Attempt to format using the class defined format.
+            # This format string implies UTC, so we should be fine.
+            return dt.strftime(self.DATE_FORMAT)
+        except ValueError:
+            # Fallback if strftime fails for some reason (e.g., unexpected dt object)
+            return dt.astimezone(timezone.utc).isoformat()
+
+    # ... (load_ticket_data, _populate_current_attachments, _format_timedelta, _calculate_and_display_sla_status as before) ...
     def load_ticket_data(self, ticket_id: str): # Unchanged from previous step essentially
         self.current_ticket_id = ticket_id; self.staged_files_for_upload.clear(); self._update_staged_files_display()
         try:
