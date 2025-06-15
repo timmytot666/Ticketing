@@ -12,6 +12,9 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Slot, Qt, Signal, QSize, QUrl, QDesktopServices
 from PySide6.QtGui import QFont, QIcon
 
+from PySide6.QtCore import Slot, Qt, Signal, QSize, QUrl
+from PySide6.QtGui import QFont, QIcon, QDesktopServices main
+
 from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Any, Tuple
 
@@ -82,11 +85,20 @@ except ModuleNotFoundError:
             for key, value in kwargs.items():
                 setattr(self, key, value)
 
-
     def get_ticket(tid): return None; def update_ticket(tid, **kwargs): return None
     def add_comment_to_ticket(tid,uid,txt): return None; def add_attachment_to_ticket(tid,uid,src,oname): return None
     def remove_attachment_from_ticket(tid,attid): return None; ATTACHMENT_DIR = "ticket_attachments_fallback"
     def get_sla_policies(): return []; def kb_search_articles(q, sf=None): return []; def kb_get_article(aid): return None
+
+    def get_ticket(tid): return None
+    def update_ticket(tid, **kwargs): return None
+    def add_comment_to_ticket(tid,uid,txt): return None
+    def add_attachment_to_ticket(tid,uid,src,oname): return None
+    def remove_attachment_from_ticket(tid,attid): return None
+    ATTACHMENT_DIR = "ticket_attachments_fallback"
+    def get_sla_policies(): return []
+    def kb_search_articles(q, sf=None): return []
+    def kb_get_article(aid): return None
 
 # --- KB Search Dialog (from previous step, ensure it's here) ---
 class KBSearchDialog(QDialog):
@@ -192,6 +204,8 @@ class TicketDetailView(QWidget):
         self.resolution_due_label.setText(self._format_datetime_display(ticket.resolution_due_at))
         self._calculate_and_display_sla_status(ticket); self._populate_comments(); self._populate_current_attachments(); self._apply_role_permissions()
     def _populate_current_attachments(self):  # Unchanged from previous step
+
+    def _populate_current_attachments(self): # Unchanged from previous step
         self.current_attachments_list_widget.clear()
         if self.current_ticket_data and hasattr(self.current_ticket_data, 'attachments') and self.current_ticket_data.attachments:
             for att_meta in self.current_ticket_data.attachments:
@@ -215,6 +229,27 @@ class TicketDetailView(QWidget):
         if ticket.status == 'Closed': reso_status = f"Resolved: {self._format_datetime_display(ticket.updated_at)}"; (ticket.resolution_due_at and ticket.updated_at > ticket.resolution_due_at) and (reso_status += " (LATE)"); status_parts.append(reso_status)
         elif ticket.resolution_due_at: status_parts.append("Resolution: OVERDUE" if now > ticket.resolution_due_at else f"Resolution Due: {self._format_timedelta(ticket.resolution_due_at - now)}")
         else: status_parts.append("Resolution: N/A")
+
+        if ticket.responded_at:
+            resp_status = f"Responded: {self._format_datetime_display(ticket.responded_at)}"
+            if ticket.response_due_at and ticket.responded_at > ticket.response_due_at:
+                resp_status += " (LATE)"
+            status_parts.append(resp_status)
+        elif ticket.response_due_at:
+            status_parts.append("Response: OVERDUE" if now > ticket.response_due_at else f"Response Due: {self._format_timedelta(ticket.response_due_at - now)}")
+        else:
+            status_parts.append("Response: N/A")
+
+        if ticket.status == 'Closed':
+            reso_status = f"Resolved: {self._format_datetime_display(ticket.updated_at)}"
+            if ticket.resolution_due_at and ticket.updated_at > ticket.resolution_due_at:
+                reso_status += " (LATE)"
+            status_parts.append(reso_status)
+        elif ticket.resolution_due_at:
+            status_parts.append("Resolution: OVERDUE" if now > ticket.resolution_due_at else f"Resolution Due: {self._format_timedelta(ticket.resolution_due_at - now)}")
+        else:
+            status_parts.append("Resolution: N/A")
+
         self.sla_status_label.setText(" | ".join(status_parts) if status_parts else "SLA Status: N/A")
 
     def process_text_for_kb_links(self, text: str) -> str: # New Method
@@ -312,6 +347,8 @@ class TicketDetailView(QWidget):
         if not self.current_ticket_id: QMessageBox.warning(self, "No Ticket", "No ticket loaded."); return
         if not self.staged_files_for_upload: QMessageBox.information(self, "No Files", "No files staged."); return
         sc=0;for sp,on in list(self.staged_files_for_upload):
+        sc=0
+        for sp,on in list(self.staged_files_for_upload):
             try:
                 if add_attachment_to_ticket(self.current_ticket_id,self.current_user.user_id,sp,on):sc+=1
                 else: QMessageBox.warning(self, "Attach Error", f"Failed to attach {on}.")
@@ -325,6 +362,12 @@ class TicketDetailView(QWidget):
         sdp,_=QFileDialog.getSaveFileName(self,"Save As...",of);
         if sdp: try:shutil.copy2(sp,sdp);QMessageBox.information(self,"Success","Saved.")
                 except Exception as e:QMessageBox.critical(self,"Error",f"Save failed: {e}")
+        if sdp:
+            try:
+                shutil.copy2(sp,sdp)
+                QMessageBox.information(self,"Success","Saved.")
+            except Exception as e:
+                QMessageBox.critical(self,"Error",f"Save failed: {e}")
     @Slot()
     def handle_remove_attachment(self, att_id: str): # Unchanged
         if not self.current_ticket_id or not att_id: return
@@ -385,6 +428,9 @@ if __name__ == '__main__':
     class DU(User):
         def __init__(self,u="dv_user",r="Technician",uid="dv_uid"):self.username=u;self.role=r;self.user_id=uid;self.ROLES=User.ROLES if hasattr(User,'ROLES') else None # type: ignore
         def set_password(self,p):pass;def check_password(self,p):return False
+        def set_password(self,p):pass
+        def check_password(self,p):return False
+
     tu=DU()
     mdb={"T001":Ticket(id="T001",title="KB Link Test",requester_user_id="u1",created_by_user_id="u1",attachments=[{"attachment_id":"att1","original_filename":"t1.txt","stored_filename":"att1.txt","uploader_user_id":"u1","uploaded_at":datetime.now(timezone.utc).isoformat(),"filesize":1024,"mimetype":"text/plain"}],comments=[{'user_id':'u1','timestamp':datetime.now(timezone.utc).isoformat(),'text':'Please see [KB: VPN Guide](kb://kb_vpn_setup_001) for help.'},{'user_id':'u2','timestamp':datetime.now(timezone.utc).isoformat(),'text':'Also check http://example.com'}])}
     def mg(tid): return mdb.get(tid)

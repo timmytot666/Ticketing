@@ -114,6 +114,7 @@ Key files and directories in the project:
     pip install -r requirements.txt
     ```
 
+
 ### Creating the First Administrator Account
 
 If you are setting up the system for the first time, or if the `users.json` file is empty or does not have an administrator account, you can create an initial admin user using the provided script. This script helps ensure you have an administrative user to begin managing the system.
