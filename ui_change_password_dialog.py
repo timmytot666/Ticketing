@@ -1,7 +1,11 @@
 import sys
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
+
+    QPushButton, QDialogButtonBox, QMessageBox, QApplication
+
     QPushButton, QDialogButtonBox, QMessageBox, QApplication, QWidget
+    main
 )
 from PySide6.QtCore import Slot, Qt
 from typing import Optional, TYPE_CHECKING

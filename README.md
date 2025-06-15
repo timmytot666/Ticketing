@@ -114,6 +114,31 @@ Key files and directories in the project:
     pip install -r requirements.txt
     ```
 
+
+### Creating the First Administrator Account
+
+If you are setting up the system for the first time, or if the `users.json` file is empty or does not have an administrator account, you can create an initial admin user using the provided script. This script helps ensure you have an administrative user to begin managing the system.
+
+1.  **Run the script from the project root directory:**
+    Make sure your virtual environment is activated (if you created one) and you are in the project's root directory.
+    ```bash
+    python create_initial_admin.py
+    ```
+
+2.  **Script Action:**
+    *   The script will attempt to create an administrator account. By default, it uses:
+        *   **Username:** `admin`
+        *   **Password:** `password`
+        *   **Role:** `TechManager` (This role typically has high privileges, including user management capabilities).
+    *   If a user with the username `admin` already exists, the script will inform you and will not perform any action to avoid duplication.
+    *   If the specified admin role (e.g., `TechManager`) is not valid as per `models.User.ROLES`, the script will print an error and exit.
+
+3.  **Important - Password Reset:**
+    *   The script creates this initial admin user with the `force_password_reset=True` flag.
+    *   This means the administrator **will be required to change this default password immediately upon their first login** through the application's login screen. This is a security measure to ensure the default password is not retained.
+
+After creating the admin user, you can proceed to the "Usage" section below to run the main application.
+
 ## Usage
 
 1.  Ensure you are in the project's root directory and your virtual environment (if used) is activated.
