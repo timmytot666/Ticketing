@@ -6,8 +6,6 @@ from PySide6.QtWidgets import (
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
     QGroupBox, QApplication, QMessageBox
 )
-from PySide6.QtCore import Slot, Qt, QShowEvent # Added QShowEvent
-from PySide6.QtGui import QFont
 from PySide6.QtCore import Slot, Qt
 from PySide6.QtGui import QFont, QShowEvent
 
@@ -66,15 +64,6 @@ class UserManagementView(QWidget):
         # --- Edit/Add User Section ---
         details_groupbox = QGroupBox("User Details"); details_main_layout = QVBoxLayout(details_groupbox)
         form_layout = QFormLayout(); self.detail_user_id_label = QLabel("User ID: N/A"); form_layout.addRow(self.detail_user_id_label)
-        form_layout.addRow(QLabel("Username:"), self.detail_username_edit = QLineEdit())
-        self.detail_role_combo = QComboBox();
-        if hasattr(User, 'ROLES') and User.ROLES and hasattr(User.ROLES, '__args__'): self.detail_role_combo.addItems(User.ROLES.__args__) # type: ignore
-        form_layout.addRow(QLabel("Role:"), self.detail_role_combo)
-        checkbox_layout = QHBoxLayout(); self.detail_is_active_check = QCheckBox("Is Active"); checkbox_layout.addWidget(self.detail_is_active_check)
-        self.detail_force_reset_check = QCheckBox("Force Password Reset"); checkbox_layout.addWidget(self.detail_force_reset_check); form_layout.addRow(checkbox_layout)
-        self.password_group_widget = QWidget(); password_qform_layout = QFormLayout(self.password_group_widget); password_qform_layout.setContentsMargins(0,0,0,0)
-        self.detail_new_password_edit = QLineEdit(); self.detail_new_password_edit.setEchoMode(QLineEdit.Password); password_qform_layout.addRow(QLabel("New Password:"), self.detail_new_password_edit
-        self.detail_confirm_password_edit = QLineEdit(); self.detail_confirm_password_edit.setEchoMode(QLineEdit.Password); password_qform_layout.addRow(QLabel("Confirm Password:"), self.detail_confirm_password_edit)
         self.detail_username_edit = QLineEdit()
         form_layout.addRow(QLabel("Username:"), self.detail_username_edit)
         self.detail_role_combo = QComboBox();
@@ -284,7 +273,6 @@ if __name__ == '__main__':
                  class TR: __args__ = ('EndUser', 'Technician', 'Engineer', 'TechManager', 'EngManager')
                  User.ROLES = TR #type: ignore
             self.ROLES = User.ROLES #type: ignore
-        def set_password(self,p):pass; def check_password(self,p):return False
         def set_password(self,p):pass
         def check_password(self,p):return False
 
