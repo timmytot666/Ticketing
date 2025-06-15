@@ -362,8 +362,6 @@ class TicketDetailView(QWidget):
         sf=att_meta.get("stored_filename");of=att_meta.get("original_filename","attachment");sp=os.path.join(self.attachment_base_path,sf) if sf else None
         if not sp or not os.path.exists(sp): QMessageBox.warning(self,"Error","Source file missing.");return
         sdp,_=QFileDialog.getSaveFileName(self,"Save As...",of);
-        if sdp: try:shutil.copy2(sp,sdp);QMessageBox.information(self,"Success","Saved.")
-                except Exception as e:QMessageBox.critical(self,"Error",f"Save failed: {e}")
         if sdp:
             try:
                 shutil.copy2(sp,sdp)
@@ -429,7 +427,6 @@ if __name__ == '__main__':
     app = QApplication(sys.argv)
     class DU(User):
         def __init__(self,u="dv_user",r="Technician",uid="dv_uid"):self.username=u;self.role=r;self.user_id=uid;self.ROLES=User.ROLES if hasattr(User,'ROLES') else None # type: ignore
-        def set_password(self,p):pass;def check_password(self,p):return False
         def set_password(self,p):pass
         def check_password(self,p):return False
 
