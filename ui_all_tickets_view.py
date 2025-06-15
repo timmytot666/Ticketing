@@ -13,9 +13,11 @@ from typing import Optional, List, Dict, Any, Tuple # Added Tuple
 try:
     from models import User, Ticket
     from ticket_manager import list_tickets
+    from user_manager import get_user_by_id # Added
 except ModuleNotFoundError:
-    print("Error: Critical modules (models, ticket_manager) not found.", file=sys.stderr)
-    class User: user_id: str = "fallback_user"
+    print("Error: Critical modules (models, ticket_manager, user_manager) not found.", file=sys.stderr)
+    class User: user_id: str = "fallback_user"; username: str ="fb_user" # Ensure username for fallback
+    def get_user_by_id(uid): print(f"Warning: Fallback get_user_by_id used for {uid}"); return None # Added Fallback
     class Ticket:
         id: str; title: str; requester_user_id: str; type: str; status: str; priority: str;
         assignee_user_id: Optional[str]; updated_at: Optional[datetime]; response_due_at: Optional[datetime];
@@ -154,7 +156,17 @@ class AllTicketsView(QWidget):
             items.append(QTableWidgetItem(getattr(ticket, 'type', 'N/A')))
             items.append(QTableWidgetItem(getattr(ticket, 'status', 'N/A')))
             items.append(QTableWidgetItem(getattr(ticket, 'priority', 'N/A')))
-            items.append(QTableWidgetItem(getattr(ticket, 'assignee_user_id', None) or "N/A"))
+
+            assignee_id = getattr(ticket, 'assignee_user_id', None)
+            assignee_display_text = "N/A"
+            if assignee_id:
+                assignee_user = get_user_by_id(assignee_id)
+                if assignee_user and hasattr(assignee_user, 'username'):
+                    assignee_display_text = assignee_user.username
+                else:
+                    # Keep it short for table view, ID might be too long
+                    assignee_display_text = f"ID: {assignee_id[:8]}... (Unknown)" if assignee_id else "Unknown"
+            items.append(QTableWidgetItem(assignee_display_text))
 
             response_due = getattr(ticket, 'response_due_at', None)
             items.append(QTableWidgetItem(response_due.strftime(self.DATE_FORMAT) if response_due else "N/A"))
