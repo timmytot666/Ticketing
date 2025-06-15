@@ -13,7 +13,7 @@ from PySide6.QtCore import Slot, Qt, Signal, QSize, QUrl, QDesktopServices
 from PySide6.QtGui import QFont, QIcon
 
 from PySide6.QtCore import Slot, Qt, Signal, QSize, QUrl
-from PySide6.QtGui import QFont, QIcon, QDesktopServices main
+from PySide6.QtGui import QFont, QIcon, QDesktopServices
 
 from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Any, Tuple
