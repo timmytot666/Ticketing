@@ -1,0 +1,58 @@
+{
+    "business_hours": {
+        "monday": ["09:00", "17:00"],
+        "tuesday": ["09:00", "17:00"],
+        "wednesday": ["09:00", "17:00"],
+        "thursday": ["09:00", "17:00"],
+        "friday": ["09:00", "17:00"],
+        "saturday": null,
+        "sunday": null
+    },
+    "public_holidays": [
+        "2024-01-01",
+        "2024-07-04",
+        "2024-12-25"
+    ],
+    "sla_policies": [
+        {
+            "policy_id": "sla_high_priority_default",
+            "name": "High Priority Default",
+            "priority": "High",
+            "ticket_type": "All",
+            "response_time_hours": 4,
+            "resolution_time_hours": 24
+        },
+        {
+            "policy_id": "sla_medium_priority_default",
+            "name": "Medium Priority Default",
+            "priority": "Medium",
+            "ticket_type": "All",
+            "response_time_hours": 8,
+            "resolution_time_hours": 120
+        },
+        {
+            "policy_id": "sla_low_priority_default",
+            "name": "Low Priority Default",
+            "priority": "Low",
+            "ticket_type": "All",
+            "response_time_hours": 24,
+            "resolution_time_hours": 240
+        },
+        {
+            "policy_id": "sla_it_high",
+            "name": "IT High Priority",
+            "priority": "High",
+            "ticket_type": "IT",
+            "response_time_hours": 2,
+            "resolution_time_hours": 16
+        },
+        {
+            "policy_id": "sla_facilities_medium",
+            "name": "Facilities Medium Priority",
+            "priority": "Medium",
+            "ticket_type": "Facilities",
+            "response_time_hours": 6,
+            "resolution_time_hours": 96
+        }
+    ]
+}

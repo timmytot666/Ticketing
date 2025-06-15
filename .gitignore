@@ -1,0 +1,52 @@
+# Python specific ignores
+__pycache__/
+*.py[cod]
+*$py.class
+
+# IDE / Editor specific files
+.vscode/
+.idea/
+*.swp
+*~
+
+# Virtual environment
+venv/
+.venv/
+
+# Data files - these should ideally not be in git if they are user-generated or large
+# For this project, we are versioning the initial empty/example JSON files,
+# but in a production scenario, you might want to ignore them or use a .gitkeep approach
+# for the directories if the files themselves are too dynamic.
+# tickets.json
+# users.json
+# notifications.json
+# app_settings.json
+
+# Ticket file attachments - should definitely be ignored
+# This directory will store user-uploaded attachments for tickets.
+ticket_attachments/
+
+# Test files output (if any, e.g. coverage reports)
+htmlcov/
+.coverage
+*.coverage.*
+coverage.xml
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+*.spec
+*.zip
+*.tar.gz
+
+# PyInstaller
+# ------------
+# *.manifest
+# *.spec
+
+# Installer logs
+# installer.log
+
+# Matplotlib font cache
+.matplotlib/
