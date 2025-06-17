@@ -69,6 +69,11 @@ class UserManagementView(QWidget):
         self.detail_role_combo = QComboBox();
         if hasattr(User, 'ROLES') and User.ROLES and hasattr(User.ROLES, '__args__'): self.detail_role_combo.addItems(User.ROLES.__args__) # type: ignore
         form_layout.addRow(QLabel("Role:"), self.detail_role_combo)
+
+        self.phone_edit = QLineEdit(); form_layout.addRow("Phone:", self.phone_edit)
+        self.email_edit = QLineEdit(); form_layout.addRow("Email:", self.email_edit)
+        self.department_edit = QLineEdit(); form_layout.addRow("Department:", self.department_edit)
+
         checkbox_layout = QHBoxLayout()
         self.detail_is_active_check = QCheckBox("Is Active")
         checkbox_layout.addWidget(self.detail_is_active_check)
@@ -106,6 +111,9 @@ class UserManagementView(QWidget):
             self.detail_role_combo.setCurrentIndex(0) if self.detail_role_combo.count() > 0 else None
             self.detail_is_active_check.setChecked(True)
             self.detail_force_reset_check.setChecked(False)
+            self.phone_edit.clear()
+            self.email_edit.clear()
+            self.department_edit.clear()
             self.detail_new_password_edit.clear(); self.detail_confirm_password_edit.clear()
             self.users_table.clearSelection()
             self.message_label.setText("Enter details for the new user.")
@@ -116,6 +124,9 @@ class UserManagementView(QWidget):
                 self.detail_user_id_label.setText("User ID: N/A")
                 self.detail_username_edit.clear()
                 self.detail_role_combo.setCurrentIndex(-1)
+                self.phone_edit.clear()
+                self.email_edit.clear()
+                self.department_edit.clear()
                 self.detail_is_active_check.setChecked(False)
                 self.detail_force_reset_check.setChecked(False)
                 self.message_label.setText("Select a user from the list to edit, or click 'Add New'.")
@@ -202,6 +213,9 @@ class UserManagementView(QWidget):
             self.detail_user_id_label.setText(f"User ID: {user.user_id}")
             self.detail_username_edit.setText(user.username)
             self.detail_role_combo.setCurrentText(user.role)
+            self.phone_edit.setText(user.phone or "")
+            self.email_edit.setText(user.email or "")
+            self.department_edit.setText(user.department or "")
             self.detail_is_active_check.setChecked(user.is_active)
             self.detail_force_reset_check.setChecked(user.force_password_reset)
             self.message_label.setText(f"Editing user: {user.username}")
@@ -220,15 +234,25 @@ class UserManagementView(QWidget):
         is_active = self.detail_is_active_check.isChecked()
         force_reset = self.detail_force_reset_check.isChecked()
 
+        phone = self.phone_edit.text().strip()
+        email = self.email_edit.text().strip()
+        department = self.department_edit.text().strip()
+
         try:
             if self.selected_user_id: # Editing existing user
                 if not username: # Username cannot be emptied for existing user (models.User validates non-empty on init)
                     QMessageBox.warning(self, "Validation Error", "Username cannot be empty.")
                     return
-                # Password change is not handled here for existing users
-                updated_user = update_user_profile(
-                    self.selected_user_id, role=role, is_active=is_active, force_password_reset=force_reset
-                )
+
+                update_payload = {
+                    "role": role,
+                    "is_active": is_active,
+                    "force_password_reset": force_reset,
+                    "phone": phone if phone else None,
+                    "email": email if email else None,
+                    "department": department if department else None
+                }
+                updated_user = update_user_profile(self.selected_user_id, **update_payload)
                 if updated_user:
                     self.message_label.setText(f"User '{updated_user.username}' updated successfully.");
                     QMessageBox.information(self, "Success", f"User '{updated_user.username}' updated.")
@@ -243,7 +267,16 @@ class UserManagementView(QWidget):
                 if len(password) < MIN_PASSWORD_LENGTH: QMessageBox.warning(self, "Input Error", f"Password must be at least {MIN_PASSWORD_LENGTH} characters."); return
                 if password != confirm_password: QMessageBox.warning(self, "Input Error", "Passwords do not match."); return
 
-                new_user = create_user(username, password, role, is_active=is_active, force_password_reset=force_reset) # type: ignore
+                new_user = create_user(
+                    username,
+                    password,
+                    role,
+                    is_active=is_active,
+                    force_password_reset=force_reset,
+                    phone=phone if phone else None,
+                    email=email if email else None,
+                    department=department if department else None
+                )
                 self.message_label.setText(f"User '{new_user.username}' created successfully.");
                 QMessageBox.information(self, "Success", f"User '{new_user.username}' created.")
                 self._set_form_for_new_user(True) # Reset for another new user

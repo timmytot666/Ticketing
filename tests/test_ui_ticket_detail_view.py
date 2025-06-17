@@ -234,5 +234,216 @@ class TestKBSearchDialogLogic(unittest.TestCase):
         self.assertIsNone(self.dialog.selected_article_id)
 
 
+@patch('ui_ticket_detail_view.QApplication.instance')
+class TestTicketDetailViewDataDisplay(unittest.TestCase):
+    def setUp(self, mock_qapp_instance):
+        if User.ROLES is None: # Ensure User.ROLES for DummyUser
+            class TempRoles: __args__ = ('Technician', 'EndUser', 'TechManager', 'EngManager', 'Engineer') # Add all roles used
+            User.ROLES = TempRoles #type: ignore
+
+        self.dummy_current_user = DummyUserForTicketDetailKBTest(username="test_viewer", role="Technician")
+
+        # Patch external manager calls
+        self.mock_get_ticket_patcher = patch('ui_ticket_detail_view.get_ticket')
+        self.mock_get_ticket = self.mock_get_ticket_patcher.start()
+        self.addCleanup(self.mock_get_ticket_patcher.stop)
+
+        self.mock_get_user_by_id_patcher = patch('ui_ticket_detail_view.get_user_by_id')
+        self.mock_get_user_by_id = self.mock_get_user_by_id_patcher.start()
+        self.addCleanup(self.mock_get_user_by_id_patcher.stop)
+
+        # Mock other manager calls that might be triggered during load_ticket_data
+        self.mock_get_sla_policies_patcher = patch('ui_ticket_detail_view.get_sla_policies')
+        self.mock_get_sla_policies = self.mock_get_sla_policies_patcher.start()
+        self.mock_get_sla_policies.return_value = [] # Default to no SLA policies
+        self.addCleanup(self.mock_get_sla_policies_patcher.stop)
+
+
+        # Instantiate the view, mocking UI construction that's not relevant
+        # We need to allow __init__ to run to set up basic attributes.
+        # However, methods that build complex UI or attach to main window can be mocked.
+        with patch.object(TicketDetailView, 'setLayout', MagicMock()), \
+             patch.object(TicketDetailView, '_populate_current_attachments', MagicMock()), \
+             patch.object(TicketDetailView, '_apply_role_permissions', MagicMock()), \
+             patch.object(TicketDetailView, '_calculate_and_display_sla_status', MagicMock()):
+            self.view = TicketDetailView(current_user=self.dummy_current_user)
+
+        # Mock the specific UI elements we will interact with or check
+        # These elements are created in TicketDetailView.__init__
+        # We replace them with MagicMock AFTER __init__ has run if they were created.
+        # If __init__ itself is too complex, these might need to be set BEFORE __init__
+        # and __init__ patched not to create them. But current structure seems to create them.
+
+        # For comments display
+        self.view.comments_display = MagicMock(spec=QTextBrowser)
+
+        # For requester info display (these are created in TicketDetailView's __init__)
+        # We can just let them be created and then check their .text() property.
+        # If direct creation is an issue, they can be mocked out like comments_display.
+        # For now, assume they are QLabels created by the real __init__ which runs before this mock assignment.
+        # To ensure they are QLabels and exist, we can check their type or mock them more thoroughly.
+        # For simplicity in this step, we'll rely on them being created by __init__ and accessible.
+        # Let's ensure they are at least MagicMocks if we don't want to rely on full init.
+        # The QFormLayout adds them, so they should exist as attributes on self.view
+        # We will re-assign them to MagicMock to control their behavior for assertions if needed,
+        # or simply use their actual instances and check their text property.
+        # For now, let's assume we check the actual QLabels created by init.
+        # If that fails, we will mock them explicitly.
+        self.view.requester_id_label = MagicMock(spec=QLabel) # Mocked because it's set in load_ticket_data
+        self.view.requester_phone_label = MagicMock(spec=QLabel)
+        self.view.requester_email_label = MagicMock(spec=QLabel)
+        self.view.requester_department_label = MagicMock(spec=QLabel)
+
+        # Also other labels set in load_ticket_data
+        self.view.ticket_id_label = MagicMock(spec=QLabel)
+        self.view.created_at_label = MagicMock(spec=QLabel)
+        self.view.updated_at_label = MagicMock(spec=QLabel)
+        self.view.title_edit = MagicMock(spec=QLineEdit)
+        self.view.description_edit = MagicMock(spec=QTextEdit)
+        self.view.status_combo = MagicMock(spec=QComboBox)
+        self.view.priority_combo = MagicMock(spec=QComboBox)
+        self.view.type_combo = MagicMock(spec=QComboBox)
+        self.view.assignee_edit = MagicMock(spec=QLineEdit)
+        self.view.sla_policy_label = MagicMock(spec=QLabel)
+        self.view.responded_at_label = MagicMock(spec=QLabel)
+        self.view.response_due_label = MagicMock(spec=QLabel)
+        self.view.resolution_due_label = MagicMock(spec=QLabel)
+        self.view.sla_status_label = MagicMock(spec=QLabel)
+
+
+    def test_comment_display_user_found(self, mock_qapp_instance):
+        comment_user_id = "commenter_u1"
+        comment_username = "CommenterOne"
+
+        mock_ticket = MagicMock(spec=Ticket)
+        mock_ticket.id = "T123"
+        mock_ticket.requester_user_id = "req_u1" # Needed for load_ticket_data
+        mock_ticket.assignee_user_id = None # Default
+        mock_ticket.sla_policy_id = None # Default
+        mock_ticket.comments = [
+            {'user_id': comment_user_id, 'timestamp': '2023-01-01T12:00:00Z', 'text': 'Test comment 1'}
+        ]
+        self.mock_get_ticket.return_value = mock_ticket
+
+        mock_comment_user = MagicMock(spec=User)
+        mock_comment_user.username = comment_username
+        # Let get_user_by_id return default for requester, specific for commenter
+        self.mock_get_user_by_id.side_effect = lambda uid: mock_comment_user if uid == comment_user_id else None
+
+        self.view.load_ticket_data("T123")
+
+        # Check that comments_display.setHtml was called
+        self.view.comments_display.setHtml.assert_called_once()
+        html_output_call = self.view.comments_display.setHtml.call_args[0][0]
+
+        # Assert that the username is in the HTML
+        self.assertIn(comment_username, html_output_call)
+        self.assertNotIn(comment_user_id, html_output_call) # Username should be there, not ID
+        self.assertIn("Test comment 1", html_output_call)
+
+    def test_comment_display_user_not_found(self, mock_qapp_instance):
+        comment_user_id = "commenter_u2_unknown"
+
+        mock_ticket = MagicMock(spec=Ticket)
+        mock_ticket.id = "T124"
+        mock_ticket.requester_user_id = "req_u2"
+        mock_ticket.assignee_user_id = None
+        mock_ticket.sla_policy_id = None
+        mock_ticket.comments = [
+            {'user_id': comment_user_id, 'timestamp': '2023-01-02T12:00:00Z', 'text': 'Another comment'}
+        ]
+        self.mock_get_ticket.return_value = mock_ticket
+        self.mock_get_user_by_id.return_value = None # User not found for any ID
+
+        self.view.load_ticket_data("T124")
+
+        self.view.comments_display.setHtml.assert_called_once()
+        html_output_call = self.view.comments_display.setHtml.call_args[0][0]
+
+        self.assertIn(f"{comment_user_id} (Unknown)", html_output_call)
+        self.assertIn("Another comment", html_output_call)
+
+    def test_requester_info_all_details_found(self, mock_qapp_instance):
+        requester_id = "req_full_details"
+        mock_ticket = MagicMock(spec=Ticket)
+        mock_ticket.id = "T_ReqFull"
+        mock_ticket.requester_user_id = requester_id
+        # Fill other necessary fields for load_ticket_data to avoid errors
+        mock_ticket.assignee_user_id = None; mock_ticket.sla_policy_id = None; mock_ticket.comments = []
+        self.mock_get_ticket.return_value = mock_ticket
+
+        mock_requester_user = MagicMock(spec=User)
+        mock_requester_user.username = "RequesterFull"
+        mock_requester_user.phone = "555-0001"
+        mock_requester_user.email = "req.full@example.com"
+        mock_requester_user.department = "Requester Dept"
+        self.mock_get_user_by_id.return_value = mock_requester_user
+
+        self.view.load_ticket_data("T_ReqFull")
+
+        self.mock_get_user_by_id.assert_called_with(requester_id) # Ensure it was called for the requester
+        self.view.requester_phone_label.setText.assert_called_with("555-0001")
+        self.view.requester_email_label.setText.assert_called_with("req.full@example.com")
+        self.view.requester_department_label.setText.assert_called_with("Requester Dept")
+
+    def test_requester_info_some_details_missing(self, mock_qapp_instance):
+        requester_id = "req_some_details"
+        mock_ticket = MagicMock(spec=Ticket)
+        mock_ticket.id = "T_ReqSome"
+        mock_ticket.requester_user_id = requester_id
+        mock_ticket.assignee_user_id = None; mock_ticket.sla_policy_id = None; mock_ticket.comments = []
+        self.mock_get_ticket.return_value = mock_ticket
+
+        mock_requester_user = MagicMock(spec=User)
+        mock_requester_user.username = "RequesterSome"
+        mock_requester_user.phone = "555-0002"
+        mock_requester_user.email = None # Missing email
+        mock_requester_user.department = "Some Dept"
+        self.mock_get_user_by_id.return_value = mock_requester_user
+
+        self.view.load_ticket_data("T_ReqSome")
+
+        self.view.requester_phone_label.setText.assert_called_with("555-0002")
+        self.view.requester_email_label.setText.assert_called_with("N/A")
+        self.view.requester_department_label.setText.assert_called_with("Some Dept")
+
+    def test_requester_info_all_new_details_none(self, mock_qapp_instance):
+        requester_id = "req_no_new_details"
+        mock_ticket = MagicMock(spec=Ticket)
+        mock_ticket.id = "T_ReqNoneNew"
+        mock_ticket.requester_user_id = requester_id
+        mock_ticket.assignee_user_id = None; mock_ticket.sla_policy_id = None; mock_ticket.comments = []
+        self.mock_get_ticket.return_value = mock_ticket
+
+        mock_requester_user = MagicMock(spec=User)
+        mock_requester_user.username = "RequesterNoNew"
+        mock_requester_user.phone = None
+        mock_requester_user.email = None
+        mock_requester_user.department = None
+        self.mock_get_user_by_id.return_value = mock_requester_user
+
+        self.view.load_ticket_data("T_ReqNoneNew")
+
+        self.view.requester_phone_label.setText.assert_called_with("N/A")
+        self.view.requester_email_label.setText.assert_called_with("N/A")
+        self.view.requester_department_label.setText.assert_called_with("N/A")
+
+    def test_requester_info_user_not_found(self, mock_qapp_instance):
+        requester_id = "req_not_found"
+        mock_ticket = MagicMock(spec=Ticket)
+        mock_ticket.id = "T_ReqNotFound"
+        mock_ticket.requester_user_id = requester_id
+        mock_ticket.assignee_user_id = None; mock_ticket.sla_policy_id = None; mock_ticket.comments = []
+        self.mock_get_ticket.return_value = mock_ticket
+
+        self.mock_get_user_by_id.return_value = None # Simulate user not found
+
+        self.view.load_ticket_data("T_ReqNotFound")
+
+        self.view.requester_phone_label.setText.assert_called_with("N/A")
+        self.view.requester_email_label.setText.assert_called_with("N/A")
+        self.view.requester_department_label.setText.assert_called_with("N/A")
+
+
 if __name__ == '__main__':
     unittest.main()

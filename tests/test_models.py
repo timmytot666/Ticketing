@@ -74,7 +74,10 @@ class TestUserModel(unittest.TestCase):
             "password_hash": original_user.password_hash,
             "role": "TechManager",
             "is_active": False,
-            "force_password_reset": True
+            "force_password_reset": True,
+            "phone": None,  # New fields are None by default
+            "email": None,
+            "department": None
         }
         self.assertEqual(user_dict, expected_dict)
 
@@ -85,23 +88,136 @@ class TestUserModel(unittest.TestCase):
         self.assertEqual(reconstructed_user.password_hash, original_user.password_hash)
         self.assertEqual(reconstructed_user.is_active, False)
         self.assertEqual(reconstructed_user.force_password_reset, True)
+        self.assertIsNone(reconstructed_user.phone) # Check new fields
+        self.assertIsNone(reconstructed_user.email)
+        self.assertIsNone(reconstructed_user.department)
 
         # Check password still works after reconstruction
         self.assertTrue(reconstructed_user.check_password("dictpass"))
         self.assertFalse(reconstructed_user.check_password("wrongpass"))
 
-    def test_user_from_dict_defaults_for_missing_flags(self):
-        # Data that might come from an older version without the new flags
-        old_user_data = {
-            "user_id": "old_user_id",
-            "username": "olduser",
-            "password_hash": generate_password_hash("oldpass"),
+    def test_user_from_dict_defaults_for_missing_flags_and_new_fields(self):
+        # Data that might come from an older version without active/reset flags AND new phone/email/dept
+        very_old_user_data = {
+            "user_id": "very_old_user_id",
+            "username": "veryolduser",
+            "password_hash": generate_password_hash("veryoldpass"),
             "role": "EndUser"
+            # Missing: is_active, force_password_reset, phone, email, department
         }
-        reconstructed_user = User.from_dict(old_user_data)
-        self.assertEqual(reconstructed_user.username, "olduser")
+        reconstructed_user = User.from_dict(very_old_user_data)
+        self.assertEqual(reconstructed_user.username, "veryolduser")
         self.assertTrue(reconstructed_user.is_active) # Should default to True
         self.assertFalse(reconstructed_user.force_password_reset) # Should default to False
+        self.assertIsNone(reconstructed_user.phone) # Should default to None
+        self.assertIsNone(reconstructed_user.email) # Should default to None
+        self.assertIsNone(reconstructed_user.department) # Should default to None
+
+    def test_user_initialization_with_new_fields(self):
+        user = User(
+            username="newfieldsuser",
+            role="EndUser",
+            phone="123-456-7890",
+            email="new@example.com",
+            department="Sales"
+        )
+        self.assertEqual(user.phone, "123-456-7890")
+        self.assertEqual(user.email, "new@example.com")
+        self.assertEqual(user.department, "Sales")
+
+    def test_user_initialization_without_new_fields(self):
+        user = User(username="basicuser", role="EndUser")
+        self.assertIsNone(user.phone)
+        self.assertIsNone(user.email)
+        self.assertIsNone(user.department)
+
+    def test_user_to_dict_includes_new_fields(self):
+        user = User(
+            username="dicttestuser_with_details", # Renamed for clarity
+            role="Technician",
+            phone="555-1234",
+            email="dict@test.com",
+            department="Support"
+        )
+        user_dict = user.to_dict()
+        self.assertEqual(user_dict.get("phone"), "555-1234")
+        self.assertEqual(user_dict.get("email"), "dict@test.com")
+        self.assertEqual(user_dict.get("department"), "Support")
+
+    def test_user_from_dict_with_new_fields(self):
+        user_data = {
+            "user_id": "user_from_dict_new",
+            "username": "fromdict_new",
+            "password_hash": generate_password_hash("password"),
+            "role": "Engineer",
+            "is_active": True,
+            "force_password_reset": False,
+            "phone": "111-222-3333",
+            "email": "fromdict@example.com",
+            "department": "Engineering"
+        }
+        user = User.from_dict(user_data)
+        self.assertEqual(user.phone, "111-222-3333")
+        self.assertEqual(user.email, "fromdict@example.com")
+        self.assertEqual(user.department, "Engineering")
+
+    def test_user_from_dict_with_new_fields_explicitly_none(self):
+        # Test when new fields are explicitly None in dict
+        user_data = {
+            "user_id": "user_from_dict_explicit_none",
+            "username": "fromdict_explicit_none",
+            "password_hash": generate_password_hash("password"),
+            "role": "EndUser",
+            "is_active": True,
+            "force_password_reset": False,
+            "phone": None,
+            "email": None,
+            "department": None
+        }
+        user = User.from_dict(user_data)
+        self.assertIsNone(user.phone)
+        self.assertIsNone(user.email)
+        self.assertIsNone(user.department)
+
+    def test_user_to_dict_from_dict_roundtrip_with_new_fields(self):
+        original_user = User(
+            username="roundtripuser_full", # Renamed for clarity
+            role="TechManager",
+            is_active=False,
+            force_password_reset=True,
+            phone="777-888-9999",
+            email="round@trip.com",
+            department="QA"
+        )
+        original_user.set_password("roundtrippass_full")
+        original_user.user_id = "fixed_user_id_for_roundtrip_full_test"
+
+        user_dict = original_user.to_dict()
+
+        expected_dict = {
+            "user_id": "fixed_user_id_for_roundtrip_full_test",
+            "username": "roundtripuser_full",
+            "password_hash": original_user.password_hash,
+            "role": "TechManager",
+            "is_active": False,
+            "force_password_reset": True,
+            "phone": "777-888-9999",
+            "email": "round@trip.com",
+            "department": "QA"
+        }
+        self.assertEqual(user_dict, expected_dict)
+
+        reconstructed_user = User.from_dict(user_dict)
+        self.assertEqual(reconstructed_user.user_id, original_user.user_id)
+        self.assertEqual(reconstructed_user.username, original_user.username)
+        self.assertEqual(reconstructed_user.role, original_user.role)
+        self.assertEqual(reconstructed_user.password_hash, original_user.password_hash)
+        self.assertEqual(reconstructed_user.is_active, original_user.is_active)
+        self.assertEqual(reconstructed_user.force_password_reset, original_user.force_password_reset)
+        self.assertEqual(reconstructed_user.phone, "777-888-9999")
+        self.assertEqual(reconstructed_user.email, "round@trip.com")
+        self.assertEqual(reconstructed_user.department, "QA")
+        self.assertTrue(reconstructed_user.check_password("roundtrippass_full"))
 
 class TestNotificationModel(unittest.TestCase):
     def test_notification_creation_success(self):

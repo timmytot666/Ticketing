@@ -47,7 +47,10 @@ def create_user(
     password: str,
     role: User.ROLES, # type: ignore
     is_active: bool = True,
-    force_password_reset: bool = False
+    force_password_reset: bool = False,
+    phone: Optional[str] = None,
+    email: Optional[str] = None,
+    department: Optional[str] = None
 ) -> User: # Changed to raise ValueError on failure, so User is always returned on success
     if not username: raise ValueError("Username cannot be empty.")
     if not password: raise ValueError("Password cannot be empty.")
@@ -62,7 +65,10 @@ def create_user(
         username=username,
         role=role,
         is_active=is_active,
-        force_password_reset=force_password_reset
+        force_password_reset=force_password_reset,
+        phone=phone,
+        email=email,
+        department=department
     )
     user.set_password(password)
 
@@ -97,7 +103,10 @@ def update_user_profile(
     user_id: str,
     role: Optional[User.ROLES] = None, # type: ignore
     is_active: Optional[bool] = None,
-    force_password_reset: Optional[bool] = None
+    force_password_reset: Optional[bool] = None,
+    phone: Optional[str] = None,
+    email: Optional[str] = None,
+    department: Optional[str] = None
 ) -> Optional[User]:
     if not user_id: raise ValueError("User ID is required to update profile.")
 
@@ -124,6 +133,15 @@ def update_user_profile(
 
     if force_password_reset is not None and user_to_update.force_password_reset != force_password_reset:
         user_to_update.force_password_reset = force_password_reset; updated = True
+
+    if phone is not None and user_to_update.phone != phone:
+        user_to_update.phone = phone; updated = True
+
+    if email is not None and user_to_update.email != email:
+        user_to_update.email = email; updated = True
+
+    if department is not None and user_to_update.department != department:
+        user_to_update.department = department; updated = True
 
     if updated:
         users[user_index] = user_to_update
