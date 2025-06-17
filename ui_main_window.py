@@ -129,7 +129,11 @@ class MainWindow(QMainWindow):
 
         self.create_ticket_view = CreateTicketView(self.current_user, self); self.stacked_widget.addWidget(self.create_ticket_view)
         self.my_tickets_view = MyTicketsView(self.current_user, self); self.stacked_widget.addWidget(self.my_tickets_view)
+        if hasattr(self.my_tickets_view, 'open_ticket_requested'):
+            self.my_tickets_view.open_ticket_requested.connect(self.show_ticket_detail_view)
         self.inbox_view = InboxView(self.current_user, self); self.inbox_view.notifications_updated.connect(self.update_notification_indicator); self.stacked_widget.addWidget(self.inbox_view)
+        if hasattr(self.inbox_view, 'open_ticket_requested'):
+            self.inbox_view.open_ticket_requested.connect(self.show_ticket_detail_view)
         self.all_tickets_view = AllTicketsView(self.current_user, self); self.all_tickets_view.ticket_selected.connect(self.show_ticket_detail_view); self.stacked_widget.addWidget(self.all_tickets_view)
         self.ticket_detail_view = TicketDetailView(self.current_user, self);
         self.ticket_detail_view.ticket_updated.connect(self.handle_ticket_updated_in_detail_view)

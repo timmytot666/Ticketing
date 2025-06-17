@@ -245,7 +245,6 @@ if __name__ == '__main__':
             if not hasattr(self, 'ROLES') or self.ROLES is None:
                  class TR: __args__ = ('EngManager','EndUser'); User.ROLES=TR; self.ROLES=TR #type: ignore
 
-        def set_password(self,p):pass; def check_password(self,p):return False
         def set_password(self,p):pass
         def check_password(self,p):return False
     test_user = DummyUserForReporting()
