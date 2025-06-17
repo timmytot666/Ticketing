@@ -118,7 +118,7 @@ class KBSearchDialog(QDialog):
         except Exception as e: QMessageBox.critical(self,"Search Error",f"Error searching knowledge base: {e}"); print(f"KB Search Error: {e}",file=sys.stderr)
         self.update_button_states()
     @Slot()
-    def update_button_states(self): btn=self.button_box.button(QDialogButtonBox.AcceptRole); btn and btn.setEnabled(self.results_list.currentItem() is not None and self.results_list.currentItem().data(Qt.UserRole)is not None)
+    def update_button_states(self): btn=self.insert_link_button; btn and btn.setEnabled(self.results_list.currentItem() is not None and self.results_list.currentItem().data(Qt.UserRole)is not None)
     @Slot()
     def accept_selection_and_close(self):
         ci=self.results_list.currentItem()
