@@ -1,7 +1,14 @@
 import sys
 import os
 import shutil
-import re # Added for KB link processing
+import re
+import html # Added for HTML escaping in fallback
+try:
+    import markdown2
+except ModuleNotFoundError:
+    markdown2 = None # Fallback if not installed
+    print("Warning: markdown2 library not found. Markdown rendering in comments will be disabled.", file=sys.stderr)
+
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFormLayout,
     QLabel, QLineEdit, QTextEdit, QComboBox, QPushButton,
@@ -269,42 +276,45 @@ class TicketDetailView(QWidget):
 
         self.sla_status_label.setText(" | ".join(status_parts) if status_parts else "SLA Status: N/A")
 
-    def process_text_for_kb_links(self, text: str) -> str: # New Method
-        # Pattern to find [KB: Display Text](kb://article_id)
-        # Ensure Display Text does not contain ']' and article_id does not contain ')'
+    def _process_html_for_kb_links(self, html_text: str) -> str:
+        # Pattern to find [KB: Display Text](kb://article_id) within HTML content
+        # This regex is applied *after* markdown processing.
+        # It looks for the markdown-like link pattern that might have survived or been part of original HTML.
         pattern = r'\[KB:([^\]]+)\]\(kb:\/\/([^)\s]+)\)'
-
-        def replace_link(match):
-            display_text = match.group(1)
-            article_id = match.group(2)
-            # Replace with HTML anchor tag
-            return f'<a href="kb://{article_id}">{display_text}</a>'
-
-        # Replace os.linesep with <br/> for QTextBrowser display before link processing
-        html_text = text.replace(os.linesep, '<br/>')
-        processed_text = re.sub(pattern, replace_link, html_text)
+        # Replacement using HTML anchor tag
+        replacement = r'<a href="kb://\2">\1</a>'
+        processed_text = re.sub(pattern, replacement, html_text)
         return processed_text
 
-    def _populate_comments(self): # Modified
+    def _populate_comments(self):
         self.comments_display.clear()
         if self.current_ticket_data and self.current_ticket_data.comments:
             full_html_content = ""
             for comment in self.current_ticket_data.comments:
                 user_id = comment.get('user_id', 'Unknown User')
                 timestamp_str = comment.get('timestamp', 'N/A') # Should be ISO format
-                text = comment.get('text', '')
+                raw_comment_text = comment.get('text', '')
 
-                # Process text for KB links before adding to display
-                processed_text_for_display = self.process_text_for_kb_links(text)
+                if markdown2:
+                    # Process with markdown2
+                    html_from_markdown = markdown2.markdown(
+                        raw_comment_text,
+                        extras=["break-on-newline", "fenced-code-blocks", "tables", "markdown-in-html"]
+                    )
+                else:
+                    # Basic HTML escaping and newline handling for fallback
+                    escaped_text = html.escape(raw_comment_text)
+                    html_from_markdown = escaped_text.replace(os.linesep, '<br/>')
 
-                # Using basic HTML for structure.
-                comment_html = f"<p><b>{user_id} ({timestamp_str[:19]})</b><br/>{processed_text_for_display}</p><hr style='margin: 2px 0; border-color: #eee;'/>"
+                # Process for KB links after markdown conversion (or fallback)
+                final_display_html = self._process_html_for_kb_links(html_from_markdown)
+
+                comment_html = f"<p><b>{user_id} ({timestamp_str[:19]})</b></p>{final_display_html}<hr style='margin: 2px 0; border-color: #eee;'/>"
                 full_html_content += comment_html
 
-            # Set the entire HTML content at once
             self.comments_display.setHtml(full_html_content if full_html_content else "<p>No comments yet.</p>")
         else:
-            self.comments_display.setHtml("<p>No comments yet.</p>") # Use setHtml for consistency
+            self.comments_display.setHtml("<p>No comments yet.</p>")
 
     def _apply_role_permissions(self): # Unchanged from previous step
         ce=self.current_ticket_data and self.current_ticket_data.status!="Closed";ipr=self.current_user.role in ['Technician','Engineer','TechManager','EngManager'];cef=ce and ipr
@@ -451,7 +461,36 @@ if __name__ == '__main__':
         def check_password(self,p):return False
 
     tu=DU()
-    mdb={"T001":Ticket(id="T001",title="KB Link Test",requester_user_id="u1",created_by_user_id="u1",attachments=[{"attachment_id":"att1","original_filename":"t1.txt","stored_filename":"att1.txt","uploader_user_id":"u1","uploaded_at":datetime.now(timezone.utc).isoformat(),"filesize":1024,"mimetype":"text/plain"}],comments=[{'user_id':'u1','timestamp':datetime.now(timezone.utc).isoformat(),'text':'Please see [KB: VPN Guide](kb://kb_vpn_setup_001) for help.'},{'user_id':'u2','timestamp':datetime.now(timezone.utc).isoformat(),'text':'Also check http://example.com'}])}
+    comment1_text = """# Main Title (H1)
+## Sub Title (H2)
+This is a paragraph with **bold text** and *italic text*.
+Here's a list:
+* Item 1
+* Item 2
+  * Sub-item 2.1
+1. Numbered item A
+2. Numbered item B
+
+A standard link: [Google](http://www.google.com)
+And a custom KB link: [KB: VPN Guide](kb://kb_vpn_setup_001)
+"""
+    comment2_text = """Another comment with a fenced code block:
+```python
+def hello():
+    print("Hello, Markdown!")
+```
+And a simple table:
+| Header 1 | Header 2 |
+| -------- | -------- |
+| Cell 1.1 | Cell 1.2 |
+| Cell 2.1 | Cell 2.2 |
+"""
+    mdb={"T001":Ticket(id="T001",title="KB Link Test",requester_user_id="u1",created_by_user_id="u1",attachments=[{"attachment_id":"att1","original_filename":"t1.txt","stored_filename":"att1.txt","uploader_user_id":"u1","uploaded_at":datetime.now(timezone.utc).isoformat(),"filesize":1024,"mimetype":"text/plain"}],comments=[
+        {'user_id':'u1','timestamp':datetime.now(timezone.utc).isoformat(),'text':comment1_text},
+        {'user_id':'u2','timestamp':datetime.now(timezone.utc).isoformat(),'text':comment2_text},
+        {'user_id':'u1','timestamp':datetime.now(timezone.utc).isoformat(),'text':'Please see [KB: VPN Guide](kb://kb_vpn_setup_001) for help.'},
+        {'user_id':'u2','timestamp':datetime.now(timezone.utc).isoformat(),'text':'Also check http://example.com'}
+    ])}
     def mg(tid): return mdb.get(tid)
     def mu(tid,**kw): t=mdb.get(tid);[setattr(t,k,v) for k,v in kw.items()];t.updated_at=datetime.now(timezone.utc);return t
     def mac(tid,uid,txt):t=mdb.get(tid);t.comments.append({'user_id':uid,'text':txt,'timestamp':datetime.now(timezone.utc).isoformat()});t.updated_at=datetime.now(timezone.utc);return t
