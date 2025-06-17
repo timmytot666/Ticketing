@@ -21,7 +21,8 @@ class User:
 
     def __init__(self, username: str, role: ROLES, user_id: Optional[str] = None,
                  password_hash: Optional[str] = None,
-                 is_active: bool = True, force_password_reset: bool = False): # Added new fields with defaults
+                 is_active: bool = True, force_password_reset: bool = False,
+                 phone: Optional[str] = None, email: Optional[str] = None, department: Optional[str] = None): # Added new fields with defaults
         if not username:
             raise ValueError("Username cannot be empty.")
         if role not in getattr(self.ROLES, '__args__', []): # Handle Literal for older Pythons if needed
@@ -44,6 +45,9 @@ class User:
         self.role: User.ROLES = role
         self.is_active: bool = is_active
         self.force_password_reset: bool = force_password_reset
+        self.phone: Optional[str] = phone
+        self.email: Optional[str] = email
+        self.department: Optional[str] = department
 
     def set_password(self, password: str):
         if not password:
@@ -69,7 +73,10 @@ class User:
             "password_hash": self._password_hash,
             "role": self.role,
             "is_active": self.is_active,
-            "force_password_reset": self.force_password_reset
+            "force_password_reset": self.force_password_reset,
+            "phone": self.phone,
+            "email": self.email,
+            "department": self.department
         }
 
     @classmethod
@@ -80,7 +87,10 @@ class User:
             user_id=data.get("user_id"),
             password_hash=data.get("password_hash"),
             is_active=data.get("is_active", True), # Default to True if missing
-            force_password_reset=data.get("force_password_reset", False) # Default to False
+            force_password_reset=data.get("force_password_reset", False), # Default to False
+            phone=data.get("phone"),
+            email=data.get("email"),
+            department=data.get("department")
         )
 
     def __repr__(self) -> str:

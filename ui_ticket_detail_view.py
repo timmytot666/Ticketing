@@ -147,6 +147,9 @@ class TicketDetailView(QWidget):
         self.ticket_id_label = QLabel("N/A"); info_form_layout.addRow("Ticket ID:", self.ticket_id_label)
         self.title_edit = QLineEdit(); info_form_layout.addRow("Title:", self.title_edit)
         self.requester_id_label = QLabel("N/A"); info_form_layout.addRow("Requester ID:", self.requester_id_label)
+        self.requester_phone_label = QLabel("N/A"); info_form_layout.addRow("Requester Phone:", self.requester_phone_label)
+        self.requester_email_label = QLabel("N/A"); info_form_layout.addRow("Requester Email:", self.requester_email_label)
+        self.requester_department_label = QLabel("N/A"); info_form_layout.addRow("Requester Department:", self.requester_department_label)
         self.status_combo = QComboBox(); self.status_combo.addItems(["Open", "In Progress", "On Hold", "Closed"]); info_form_layout.addRow("Status:", self.status_combo)
         self.priority_combo = QComboBox(); self.priority_combo.addItems(["Low", "Medium", "High"]); info_form_layout.addRow("Priority:", self.priority_combo)
         self.type_combo = QComboBox(); self.type_combo.addItems(["IT", "Facilities"]); info_form_layout.addRow("Type:", self.type_combo)
@@ -208,7 +211,20 @@ class TicketDetailView(QWidget):
             if not ticket: QMessageBox.warning(self, "Not Found", f"Ticket ID '{ticket_id}' not found."); self.clear_view(); return
             self.current_ticket_data = ticket
         except Exception as e: QMessageBox.critical(self, "Error", f"Failed to load ticket data: {e}"); self.clear_view(); return
-        self.ticket_id_label.setText(ticket.id); self.requester_id_label.setText(ticket.requester_user_id)
+        self.ticket_id_label.setText(ticket.id)
+
+        # Populate Requester Info
+        self.requester_id_label.setText(ticket.requester_user_id)
+        requester_user = get_user_by_id(ticket.requester_user_id)
+        if requester_user:
+            self.requester_phone_label.setText(requester_user.phone or "N/A")
+            self.requester_email_label.setText(requester_user.email or "N/A")
+            self.requester_department_label.setText(requester_user.department or "N/A")
+        else:
+            self.requester_phone_label.setText("N/A")
+            self.requester_email_label.setText("N/A")
+            self.requester_department_label.setText("N/A")
+
         self.created_at_label.setText(self._format_datetime_display(ticket.created_at)); self.updated_at_label.setText(self._format_datetime_display(ticket.updated_at))
         self.title_edit.setText(ticket.title); self.description_edit.setPlainText(ticket.description)
         self.status_combo.setCurrentText(ticket.status); self.priority_combo.setCurrentText(ticket.priority)
@@ -291,7 +307,17 @@ class TicketDetailView(QWidget):
         if self.current_ticket_data and self.current_ticket_data.comments:
             full_html_content = ""
             for comment in self.current_ticket_data.comments:
-                user_id = comment.get('user_id', 'Unknown User')
+                user_id = comment.get('user_id')
+                display_name = f"User ID: {user_id}" # Default fallback
+                if user_id:
+                    user = get_user_by_id(user_id)
+                    if user:
+                        display_name = user.username
+                    else:
+                        display_name = f"{user_id} (Unknown)"
+                else:
+                    display_name = "Unknown User"
+
                 timestamp_str = comment.get('timestamp', 'N/A') # Should be ISO format
                 raw_comment_text = comment.get('text', '')
 
@@ -309,7 +335,7 @@ class TicketDetailView(QWidget):
                 # Process for KB links after markdown conversion (or fallback)
                 final_display_html = self._process_html_for_kb_links(html_from_markdown)
 
-                comment_html = f"<p><b>{user_id} ({timestamp_str[:19]})</b></p>{final_display_html}<hr style='margin: 2px 0; border-color: #eee;'/>"
+                comment_html = f"<p><b>{display_name} ({timestamp_str[:19]})</b></p>{final_display_html}<hr style='margin: 2px 0; border-color: #eee;'/>"
                 full_html_content += comment_html
 
             self.comments_display.setHtml(full_html_content if full_html_content else "<p>No comments yet.</p>")
@@ -441,7 +467,11 @@ class TicketDetailView(QWidget):
             if link_data: article_id, article_title = link_data; link_text = f"[KB: {article_title}](kb://{article_id})"; self.new_comment_edit.insertPlainText(link_text + "\n")
     def clear_view(self): # Unchanged from previous step
         self.current_ticket_id=None;self.current_ticket_data=None
-        for l in[self.ticket_id_label,self.requester_id_label,self.created_at_label,self.updated_at_label,self.sla_policy_label,self.response_due_label,self.resolution_due_label,self.responded_at_label,self.sla_status_label]:l.setText("N/A")
+        for l in[self.ticket_id_label,self.requester_id_label,
+                 self.requester_phone_label, self.requester_email_label, self.requester_department_label, # Added new labels
+                 self.created_at_label,self.updated_at_label,self.sla_policy_label,
+                 self.response_due_label,self.resolution_due_label,self.responded_at_label,
+                 self.sla_status_label]:l.setText("N/A")
         for e in[self.title_edit,self.assignee_edit,self.description_edit,self.new_comment_edit]:e.clear()
         self.comments_display.clear();self.current_attachments_list_widget.clear()
         for c in[self.status_combo,self.priority_combo,self.type_combo]:c.setCurrentIndex(0)
