@@ -3,7 +3,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem,
     QPushButton, QHeaderView, QAbstractItemView, QMessageBox, QApplication
 )
-from PySide6.QtCore import Slot, Qt
+from PySide6.QtCore import Slot, Qt, Signal # Added Signal
 from PySide6.QtGui import QColor, QFont, QShowEvent # Moved QShowEvent
 
 from datetime import datetime, timedelta, timezone # Added timedelta, timezone
@@ -26,6 +26,8 @@ except ModuleNotFoundError:
     def list_tickets(filters=None) -> list: return []
 
 class MyTicketsView(QWidget):
+    open_ticket_requested = Signal(str) # Added signal
+
     # Column definitions
     COLUMN_ID = 0
     COLUMN_TITLE = 1
@@ -42,7 +44,7 @@ class MyTicketsView(QWidget):
     def __init__(self, current_user: User, parent: Optional[QWidget] = None):
         super().__init__(parent)
         self.current_user = current_user
-        self.setWindowTitle("My Submitted Tickets")
+        self.setWindowTitle("My Tickets") # Changed
         main_layout = QVBoxLayout(self)
 
         button_layout = QHBoxLayout()
@@ -69,6 +71,7 @@ class MyTicketsView(QWidget):
                     self.COLUMN_SLA_STATUS, self.COLUMN_LAST_UPDATED]:
             self.tickets_table.horizontalHeader().setSectionResizeMode(col, QHeaderView.ResizeToContents)
 
+        self.tickets_table.itemDoubleClicked.connect(self.handle_ticket_double_clicked) # Added connection
         main_layout.addWidget(self.tickets_table)
         self.setLayout(main_layout)
 
@@ -114,17 +117,36 @@ class MyTicketsView(QWidget):
 
     @Slot()
     def load_my_tickets_data(self):
-        if hasattr(self.current_user, 'user_id'):
-            self._populate_table(user_id=self.current_user.user_id)
-        else:
-            print("Error: current_user has no user_id attribute.", file=sys.stderr)
+        if not hasattr(self.current_user, 'user_id') or not hasattr(self.current_user, 'role'):
+            print("Error: current_user has no user_id or role attribute.", file=sys.stderr)
             self.tickets_table.setRowCount(0)
             QMessageBox.critical(self, "Error", "Cannot load tickets: User information is missing.")
+            return
 
-    def _populate_table(self, user_id: str):
+        user_role = self.current_user.role
+        user_id = self.current_user.user_id
+
+        # Define roles that should see assigned tickets in "My Tickets"
+        # These are roles that primarily work on tickets assigned to them.
+        technician_like_roles = ['Technician', 'Engineer']
+
+        # Managers might have different views (e.g., all tickets, team tickets).
+        # For "My Tickets", if a manager is also assigned tickets, they should see them.
+        # If they are *only* managing, "My Tickets" might be empty or show tickets they requested.
+        # For now, let's assume managers also use "My Tickets" for tickets directly assigned to them.
+        manager_roles = ['TechManager', 'EngManager']
+
+        if user_role in technician_like_roles or user_role in manager_roles:
+            # Technicians, Engineers, and Managers see tickets assigned to them
+            self._populate_table(filter_key='assignee_user_id', user_id_to_filter=user_id)
+        else:
+            # EndUsers (and any other roles not specified above) see tickets they requested
+            self._populate_table(filter_key='requester_user_id', user_id_to_filter=user_id)
+
+    def _populate_table(self, filter_key: str, user_id_to_filter: str):
         self.tickets_table.setRowCount(0)
         try:
-            tickets: List[Ticket] = list_tickets(filters={'requester_user_id': user_id})
+            tickets: List[Ticket] = list_tickets(filters={filter_key: user_id_to_filter})
         except Exception as e:
             print(f"Error fetching tickets: {e}", file=sys.stderr)
             QMessageBox.critical(self, "Error", f"Could not load tickets: {e}")
@@ -137,7 +159,11 @@ class MyTicketsView(QWidget):
 
         for row_num, ticket in enumerate(tickets):
             items: List[QTableWidgetItem] = []
-            items.append(QTableWidgetItem(ticket.id))
+
+            id_item = QTableWidgetItem(ticket.id)
+            id_item.setData(Qt.UserRole, ticket.id) # Store full ticket.id in UserRole
+            items.append(id_item)
+
             items.append(QTableWidgetItem(getattr(ticket, 'title', 'N/A')))
             items.append(QTableWidgetItem(getattr(ticket, 'type', 'N/A')))
             items.append(QTableWidgetItem(getattr(ticket, 'status', 'N/A')))
@@ -162,6 +188,24 @@ class MyTicketsView(QWidget):
     def showEvent(self, event: QShowEvent):
         super().showEvent(event)
         if event.isAccepted(): self.load_my_tickets_data()
+
+    @Slot(QTableWidgetItem)
+    def handle_ticket_double_clicked(self, item: QTableWidgetItem):
+        if not item: # Should not happen if signal is connected to a valid table
+            return
+        row = item.row()
+        # Assuming COLUMN_ID is 0 and holds the QTableWidgetItem with ticket_id in UserRole
+        id_item = self.tickets_table.item(row, self.COLUMN_ID)
+        if id_item:
+            ticket_id = id_item.data(Qt.UserRole) # Retrieve ticket_id
+            if not ticket_id: # Fallback if UserRole was not set, try text
+                ticket_id = id_item.text()
+
+            if ticket_id:
+                print(f"MyTicketsView: Double-click detected on ticket ID: {ticket_id}")
+                self.open_ticket_requested.emit(ticket_id)
+            else:
+                print("MyTicketsView: Could not determine ticket ID from double-clicked row.", file=sys.stderr)
 
 if __name__ == '__main__':
     import os
