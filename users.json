@@ -5,6 +5,9 @@
         "password_hash": "scrypt:32768:8:1$Cxb3hrW1xjgaKMjc$08c45f5d64628cf7f62059228d5fdbf986036c1c2c969d315083f3e41255319d87b2f8dd117d65c1b2389db1f684d80fb57bb7bf08aff1bc8e9239c56791e9e9",
         "role": "TechManager",
         "is_active": true,
-        "force_password_reset": true
+        "force_password_reset": true,
+        "phone": "123-456-7890",
+        "email": "admin@example.com",
+        "department": "IT"
     }
 ]

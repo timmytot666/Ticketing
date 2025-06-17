@@ -58,11 +58,17 @@ class TestUserManager(unittest.TestCase):
             mock_print.assert_any_call(f"Error: Could not decode JSON from {TEST_USERS_FILE}. Returning empty list.")
 
     def test_save_and_load_users(self):
-        user1 = User(username="user1", role="EndUser")
+        user1 = User(
+            username="user1",
+            role="EndUser",
+            phone="111-111-1111",
+            email="user1@example.com",
+            department="Sales"
+        )
         user1.set_password("pass1")
         user1.user_id = "fixed_id_1" # for predictable test
 
-        user2 = User(username="user2", role="Technician")
+        user2 = User(username="user2", role="Technician") # No new fields
         user2.set_password("pass2")
         user2.user_id = "fixed_id_2"
 
@@ -81,15 +87,33 @@ class TestUserManager(unittest.TestCase):
         self.assertEqual(loaded_user1.role, user1.role)
         self.assertEqual(loaded_user1.password_hash, user1.password_hash) # Check hash directly
         self.assertTrue(loaded_user1.check_password("pass1"))
+        self.assertEqual(loaded_user1.phone, "111-111-1111")
+        self.assertEqual(loaded_user1.email, "user1@example.com")
+        self.assertEqual(loaded_user1.department, "Sales")
+
+        loaded_user2 = next(u for u in loaded_users if u.username == "user2")
+        self.assertIsNone(loaded_user2.phone)
+        self.assertIsNone(loaded_user2.email)
+        self.assertIsNone(loaded_user2.department)
 
 
-    def test_create_user_success(self):
-        created_user = user_manager.create_user("newuser", "newpass123", "Engineer")
+    def test_create_user_success_with_new_fields(self):
+        created_user = user_manager.create_user(
+            "newuser",
+            "newpass123",
+            "Engineer",
+            phone="222-222-2222",
+            email="newuser@example.com",
+            department="Engineering"
+        )
         self.assertIsInstance(created_user, User)
         self.assertEqual(created_user.username, "newuser")
         self.assertEqual(created_user.role, "Engineer")
         self.assertTrue(created_user.is_active) # Default
         self.assertFalse(created_user.force_password_reset) # Default
+        self.assertEqual(created_user.phone, "222-222-2222")
+        self.assertEqual(created_user.email, "newuser@example.com")
+        self.assertEqual(created_user.department, "Engineering")
         self.assertTrue(created_user.check_password("newpass123"))
         self.assertIsNotNone(created_user.password_hash)
 
@@ -99,9 +123,26 @@ class TestUserManager(unittest.TestCase):
         self.assertEqual(loaded_db_user.username, "newuser")
         self.assertTrue(loaded_db_user.is_active)
         self.assertFalse(loaded_db_user.force_password_reset)
+        self.assertEqual(loaded_db_user.phone, "222-222-2222")
+        self.assertEqual(loaded_db_user.email, "newuser@example.com")
+        self.assertEqual(loaded_db_user.department, "Engineering")
         self.assertTrue(loaded_db_user.check_password("newpass123"))
 
-    def test_create_user_with_flags(self):
+    def test_create_user_success_without_new_fields(self):
+        created_user = user_manager.create_user("basiccreate", "basicpass", "EndUser")
+        self.assertIsInstance(created_user, User)
+        self.assertEqual(created_user.username, "basiccreate")
+        self.assertIsNone(created_user.phone)
+        self.assertIsNone(created_user.email)
+        self.assertIsNone(created_user.department)
+
+        loaded_db_user = user_manager.get_user_by_username("basiccreate")
+        self.assertIsNotNone(loaded_db_user)
+        self.assertIsNone(loaded_db_user.phone)
+        self.assertIsNone(loaded_db_user.email)
+        self.assertIsNone(loaded_db_user.department)
+
+    def test_create_user_with_flags(self): # Existing test, ensure it still passes
         created_user = user_manager.create_user(
             "flaguser", "flagpass", "Technician", is_active=False, force_password_reset=True
         )
@@ -200,19 +241,72 @@ class TestUserManager(unittest.TestCase):
             user.user_id,
             role="Technician",
             is_active=False,
-            force_password_reset=True
+            force_password_reset=True,
+            phone="333-333-3333",
+            email="updater@example.com",
+            department="Support"
         )
         self.assertIsNotNone(updated_user)
         self.assertEqual(updated_user.role, "Technician")
         self.assertFalse(updated_user.is_active)
         self.assertTrue(updated_user.force_password_reset)
+        self.assertEqual(updated_user.phone, "333-333-3333")
+        self.assertEqual(updated_user.email, "updater@example.com")
+        self.assertEqual(updated_user.department, "Support")
         mock_save_users.assert_called_once()
+
         # Check if data is actually persisted by reloading
         reloaded_user = user_manager.get_user_by_id(user.user_id)
+        self.assertIsNotNone(reloaded_user)
         self.assertEqual(reloaded_user.role, "Technician")
         self.assertFalse(reloaded_user.is_active)
         self.assertTrue(reloaded_user.force_password_reset)
+        self.assertEqual(reloaded_user.phone, "333-333-3333")
+        self.assertEqual(reloaded_user.email, "updater@example.com")
+        self.assertEqual(reloaded_user.department, "Support")
 
+    @patch.object(user_manager, '_save_users')
+    def test_update_user_profile_only_phone(self, mock_save_users):
+        user = user_manager.create_user("phoneupdater", "pass", "EndUser", phone="oldphone")
+        initial_save_count = mock_save_users.call_count
+        user_manager.update_user_profile(user.user_id, phone="newphone-123")
+        reloaded = user_manager.get_user_by_id(user.user_id)
+        self.assertIsNotNone(reloaded)
+        self.assertEqual(reloaded.phone, "newphone-123")
+        self.assertGreater(mock_save_users.call_count, initial_save_count)
+
+    @patch.object(user_manager, '_save_users')
+    def test_update_user_profile_only_email(self, mock_save_users):
+        user = user_manager.create_user("emailupdater", "pass", "EndUser", email="old@mail.com")
+        initial_save_count = mock_save_users.call_count
+        user_manager.update_user_profile(user.user_id, email="new@mail.com")
+        reloaded = user_manager.get_user_by_id(user.user_id)
+        self.assertIsNotNone(reloaded)
+        self.assertEqual(reloaded.email, "new@mail.com")
+        self.assertGreater(mock_save_users.call_count, initial_save_count)
+
+    @patch.object(user_manager, '_save_users')
+    def test_update_user_profile_only_department(self, mock_save_users):
+        user = user_manager.create_user("deptupdater", "pass", "EndUser", department="OldDept")
+        initial_save_count = mock_save_users.call_count
+        user_manager.update_user_profile(user.user_id, department="NewDept")
+        reloaded = user_manager.get_user_by_id(user.user_id)
+        self.assertIsNotNone(reloaded)
+        self.assertEqual(reloaded.department, "NewDept")
+        self.assertGreater(mock_save_users.call_count, initial_save_count)
+
+    @patch.object(user_manager, '_save_users')
+    def test_update_user_profile_set_new_fields_to_none(self, mock_save_users):
+        user = user_manager.create_user("setnonetester", "pass", "EndUser",
+                                        phone="123", email="email@example.com", department="Dept")
+        initial_save_count = mock_save_users.call_count
+        user_manager.update_user_profile(user.user_id, phone=None, email=None, department=None)
+        reloaded = user_manager.get_user_by_id(user.user_id)
+        self.assertIsNotNone(reloaded)
+        self.assertIsNone(reloaded.phone)
+        self.assertIsNone(reloaded.email)
+        self.assertIsNone(reloaded.department)
+        self.assertGreater(mock_save_users.call_count, initial_save_count)
 
     @patch.object(user_manager, '_save_users')
     def test_update_user_profile_only_role(self, mock_save_users):
