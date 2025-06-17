@@ -37,6 +37,7 @@ except ModuleNotFoundError:
 
 class InboxView(QWidget):
     notifications_updated = Signal() # Signal to notify main window to update its indicator
+    open_ticket_requested = Signal(str) # Added signal
 
     COLUMN_STATUS = 0
     COLUMN_MESSAGE = 1
@@ -116,7 +117,13 @@ class InboxView(QWidget):
             status_item.setData(Qt.UserRole, notification.notification_id)
 
             message_item = QTableWidgetItem(notification.message)
-            ticket_id_item = QTableWidgetItem(notification.ticket_id if notification.ticket_id else "N/A")
+
+            current_ticket_id = notification.ticket_id # Store for clarity
+            ticket_id_display_text = current_ticket_id if current_ticket_id else "N/A"
+            ticket_id_item = QTableWidgetItem(ticket_id_display_text)
+            if current_ticket_id: # Only store actual ticket_id in UserRole
+                ticket_id_item.setData(Qt.UserRole, current_ticket_id)
+
             date_str = notification.timestamp.strftime("%Y-%m-%d %H:%M:%S") if notification.timestamp else "N/A"
             date_item = QTableWidgetItem(date_str)
 
@@ -173,7 +180,23 @@ class InboxView(QWidget):
 
     @Slot(QTableWidgetItem)
     def handle_item_double_click(self, item: QTableWidgetItem):
-        row = item.row()
+        # item is the QTableWidgetItem that was double-clicked.
+        # row = item.row() # Already available or can be obtained from item.row()
+
+        # Retrieve the item for the TICKET_ID column specifically for this row
+        ticket_id_cell_item = self.notifications_table.item(item.row(), self.COLUMN_TICKET_ID)
+        if ticket_id_cell_item:
+            ticket_id_from_data = ticket_id_cell_item.data(Qt.UserRole)
+            if ticket_id_from_data and isinstance(ticket_id_from_data, str):
+                print(f"InboxView: Double-click detected on notification related to ticket ID: {ticket_id_from_data}")
+                self.open_ticket_requested.emit(ticket_id_from_data)
+                # The rest of the method (marking as read) will execute after this.
+            else:
+                print(f"InboxView: Double-clicked notification item in row {item.row()} does not have an associated ticket ID in UserRole.")
+        else:
+            print(f"InboxView: Could not retrieve ticket_id_cell_item for row {item.row()}.", file=sys.stderr)
+
+        row = item.row() # Existing logic starts here
         status_cell_item = self.notifications_table.item(row, self.COLUMN_STATUS)
         if not status_cell_item: return
 

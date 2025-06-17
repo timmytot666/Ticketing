@@ -9,9 +9,6 @@ from PySide6.QtWidgets import (
     QFileDialog, QListWidget, QListWidgetItem, QToolButton, QSizePolicy,
     QDialog, QDialogButtonBox, QTextBrowser # Added QTextBrowser
 )
-from PySide6.QtCore import Slot, Qt, Signal, QSize, QUrl, QDesktopServices
-from PySide6.QtGui import QFont, QIcon
-
 from PySide6.QtCore import Slot, Qt, Signal, QSize, QUrl
 from PySide6.QtGui import QFont, QIcon, QDesktopServices
 
@@ -25,8 +22,10 @@ try:
     from settings_manager import get_sla_policies
     from kb_manager import search_articles as kb_search_articles
     from kb_manager import get_article as kb_get_article
+    from user_manager import get_user_by_id # Added
 except ModuleNotFoundError:
     print("Error: Critical modules not found for TicketDetailView/KBSearchDialog.", file=sys.stderr)
+    def get_user_by_id(uid): print(f"Warning: Fallback get_user_by_id used for {uid}"); return None # Added Fallback
 
     # Imports needed for FallbackTicket default values
     from datetime import datetime, timezone
@@ -132,6 +131,7 @@ class TicketDetailView(QWidget):
     DATE_FORMAT="%Y-%m-%d %H:%M:%S UTC"
     def __init__(self, current_user:User, parent:Optional[QWidget]=None):
         super().__init__(parent)
+        self.current_assignee_username: Optional[str] = None # Added
         # ... (member initializations as before) ...
         self.current_user=current_user; self.current_ticket_id:Optional[str]=None; self.current_ticket_data:Optional[Ticket]=None; self.staged_files_for_upload:List[Tuple[str,str]]=[]; self.attachment_base_path=ATTACHMENT_DIR
         main_layout=QVBoxLayout(self); scroll_area=QScrollArea(); scroll_area.setWidgetResizable(True); main_layout.addWidget(scroll_area); content_widget=QWidget(); scroll_area.setWidget(content_widget); layout=QVBoxLayout(content_widget)
@@ -143,7 +143,7 @@ class TicketDetailView(QWidget):
         self.status_combo = QComboBox(); self.status_combo.addItems(["Open", "In Progress", "On Hold", "Closed"]); info_form_layout.addRow("Status:", self.status_combo)
         self.priority_combo = QComboBox(); self.priority_combo.addItems(["Low", "Medium", "High"]); info_form_layout.addRow("Priority:", self.priority_combo)
         self.type_combo = QComboBox(); self.type_combo.addItems(["IT", "Facilities"]); info_form_layout.addRow("Type:", self.type_combo)
-        self.assignee_edit = QLineEdit(); self.assignee_edit.setPlaceholderText("User ID or blank"); info_form_layout.addRow("Assigned To:", self.assignee_edit)
+        self.assignee_edit = QLineEdit(); self.assignee_edit.setPlaceholderText("Username or blank"); info_form_layout.addRow("Assigned To:", self.assignee_edit) # Modified Placeholder
         self.created_at_label = QLabel("N/A"); info_form_layout.addRow("Created At:", self.created_at_label)
         self.updated_at_label = QLabel("N/A"); info_form_layout.addRow("Last Updated:", self.updated_at_label)
         self.sla_policy_label = QLabel("N/A"); info_form_layout.addRow("SLA Policy:", self.sla_policy_label)
@@ -205,7 +205,21 @@ class TicketDetailView(QWidget):
         self.created_at_label.setText(self._format_datetime_display(ticket.created_at)); self.updated_at_label.setText(self._format_datetime_display(ticket.updated_at))
         self.title_edit.setText(ticket.title); self.description_edit.setPlainText(ticket.description)
         self.status_combo.setCurrentText(ticket.status); self.priority_combo.setCurrentText(ticket.priority)
-        self.type_combo.setCurrentText(ticket.type); self.assignee_edit.setText(ticket.assignee_user_id or "")
+        self.type_combo.setCurrentText(ticket.type); # self.assignee_edit.setText(ticket.assignee_user_id or "") # Old logic replaced
+
+        self.current_assignee_username = "" # Reset
+        if ticket.assignee_user_id:
+            assignee_user = get_user_by_id(ticket.assignee_user_id)
+            if assignee_user:
+                self.assignee_edit.setText(assignee_user.username)
+                self.current_assignee_username = assignee_user.username
+            else:
+                # User ID exists but user not found (data inconsistency?)
+                self.assignee_edit.setText(f"ID: {ticket.assignee_user_id} (not found)")
+                # self.current_assignee_username remains ""
+        else:
+            self.assignee_edit.setText("") # No assignee
+
         if ticket.sla_policy_id:
             all_sla_policies = get_sla_policies(); policy_name = next((p['name'] for p in all_sla_policies if p['policy_id'] == ticket.sla_policy_id), ticket.sla_policy_id)
             self.sla_policy_label.setText(policy_name)
@@ -385,13 +399,19 @@ class TicketDetailView(QWidget):
         if self.status_combo.currentText()!=self.current_ticket_data.status:ud['status']=self.status_combo.currentText();cf=True
         if self.priority_combo.currentText()!=self.current_ticket_data.priority:ud['priority']=self.priority_combo.currentText();cf=True
         if self.type_combo.currentText()!=self.current_ticket_data.type:ud['type']=self.type_combo.currentText();cf=True
-        a=self.assignee_edit.text().strip();ca=self.current_ticket_data.assignee_user_id
-        if(a or None)!=ca:ud['assignee_user_id']=a if a else None;cf=True
+
+        assignee_username_text = self.assignee_edit.text().strip()
+        if assignee_username_text != self.current_assignee_username:
+            ud['assignee_username'] = assignee_username_text # Pass the username
+            cf = True
+
         if not cf and not ud:QMessageBox.information(self,"No Changes","No changes detected.");return
         try:
             upd=update_ticket(self.current_ticket_id,**ud)
             if upd:QMessageBox.information(self,"Success","Ticket updated.");self.ticket_updated.emit(self.current_ticket_id);self.load_ticket_data(self.current_ticket_id)
             else:QMessageBox.warning(self,"Update Failed","Failed to update ticket.")
+        except ValueError as e: # Catch specific error from ticket_manager for assignee_username
+            QMessageBox.warning(self, "Update Error", str(e))
         except Exception as e:QMessageBox.critical(self,"Error",f"Update error: {e}");print(f"Error:{e}",file=sys.stderr)
     @Slot()
     def handle_add_comment(self): # Unchanged

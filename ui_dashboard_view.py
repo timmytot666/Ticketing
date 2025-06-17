@@ -226,11 +226,8 @@ if __name__ == '__main__':
                  class TempRoles: __args__ = ('TechManager', 'EndUser')
                  User.ROLES = TempRoles; self.ROLES = TempRoles # type: ignore
 
-        def set_password(self,p):pass; def check_password(self,p):return False
-
         def set_password(self,p):pass
         def check_password(self,p):return False
-
 
     test_user = DummyUserForDashboard()
 
