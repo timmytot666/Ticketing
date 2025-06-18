@@ -233,7 +233,7 @@ class CreateTicketView(QWidget):
             self.message_label.setText("Title and Description cannot be empty."); self.message_label.setStyleSheet("color: red;")
             QMessageBox.warning(self, "Input Error", "Title and Description cannot be empty."); return
         try:
-            new_ticket = create_ticket(title=title,description=description,type=ticket_type,priority=priority,requester_user_id=self.current_user.user_id)
+            new_ticket = create_ticket(title=title,description=description,type=ticket_type,priority=priority,requester_user_id=self.current_user.user_id, created_by_user_id=self.current_user.user_id)
             if not new_ticket: raise Exception("Ticket creation returned None.")
             success_uploads=0
             for sp,on in list(self.staged_files_for_upload):

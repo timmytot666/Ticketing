@@ -2,7 +2,7 @@
 
 ## Overview
 
-This is a desktop application built with Python and PySide6 for managing IT and Facilities support tickets. It features a rich user interface with role-based access control, enabling different levels of interaction and functionality depending on the logged-in user. The system persists data using local JSON files.
+This is a desktop application built with Python and PySide6 for managing IT and Facilities support tickets. It features a rich user interface with role-based access control, enabling different levels of interaction and functionality depending on the logged-in user. The system persists data using an SQLite database (`ticketing_system.db`). Application settings are stored in `app_settings.json`.
 
 ## User Roles & Capabilities
 
@@ -53,7 +53,7 @@ The system defines several user roles, each with specific capabilities:
         *   Ticket Volume by Type
         *   User Activity (Top Requesters)
     *   Filter reports by a selectable date range (based on ticket creation date).
-*   **Data Persistence:** User accounts, tickets, and notifications are stored in local JSON files (`users.json`, `tickets.json`, `notifications.json`).
+*   **Data Storage:** User accounts, tickets, knowledge base articles, and notifications are stored in an SQLite database file named `ticketing_system.db` located in the project root. This database is automatically created and initialized if it doesn't exist. Key application settings (like business hours and SLA policies) are configured in `app_settings.json`. Ticket attachments are stored in the `ticket_attachments/` directory, with metadata linked in the database.
 
 ## File Structure
 
@@ -75,10 +75,10 @@ Key files and directories in the project:
     *   `ticket_manager.py`: Business logic for ticket operations and data persistence.
     *   `user_manager.py`: Business logic for user authentication and data persistence.
     *   `notification_manager.py`: Business logic for notification management and data persistence.
-*   **Data Files (`*.json`):**
-    *   `tickets.json`: Stores ticket data.
-    *   `users.json`: Stores user accounts (including hashed passwords).
-    *   `notifications.json`: Stores notification data.
+*   **Data and Configuration Files:**
+    *   `ticketing_system.db`: SQLite database storing all transactional data (users, tickets, KB articles, notifications).
+    *   `app_settings.json`: Stores application configuration like business hours and SLA policies.
+    *   `ticket_attachments/`: Directory where uploaded ticket attachment files are stored.
 *   **Dependencies:**
     *   `requirements.txt`: Lists project dependencies (PySide6, Werkzeug, matplotlib).
 *   **Tests:**
@@ -117,7 +117,7 @@ Key files and directories in the project:
 
 ### Creating the First Administrator Account
 
-If you are setting up the system for the first time, or if the `users.json` file is empty or does not have an administrator account, you can create an initial admin user using the provided script. This script helps ensure you have an administrative user to begin managing the system.
+If you are setting up the system for the first time, or if the database is empty or does not have an administrator account, you can create an initial admin user using the provided script. This script helps ensure you have an administrative user to begin managing the system.
 
 1.  **Run the script from the project root directory:**
     Make sure your virtual environment is activated (if you created one) and you are in the project's root directory.
@@ -147,7 +147,7 @@ After creating the admin user, you can proceed to the "Usage" section below to r
     python main_gui.py
     ```
 3.  Log in with a user account.
-    *   *(Note: User creation is currently handled by manually editing `users.json` or via direct calls to `user_manager.create_user()`. For initial setup, you might need to create a user this way. Ensure passwords set via `user.set_password()` are properly hashed by Werkzeug.)*
+    *   *(Note: The primary way to create users is through the application if user management features are available to the logged-in admin, or programmatically via `user_manager.create_user()`. The `create_initial_admin.py` script can be used for initial setup.)*
     *   Example roles defined in `models.User.ROLES`: `EndUser`, `Technician`, `Engineer`, `TechManager`, `EngManager`.
 
 ## Running Tests
